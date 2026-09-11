@@ -129,7 +129,7 @@
 .cal-cell.today { border-color: var(--blue-500); background: #f0f8fe; box-shadow: 0 0 0 2px rgba(46,162,230,0.18); border-width: 2.5px; }
 .cal-cell.selected { border-color: var(--blue-700); box-shadow: 0 0 0 3px rgba(14,74,122,0.18); border-width: 2.5px; }
 
-/* Paper-calendar watermark date — big, centered, pale background image */
+/* Paper-calendar watermark date — big, centered, pale background image — slightly less pale for readability */
 .cell-watermark {
   position: absolute;
   inset: 0;
@@ -139,17 +139,17 @@
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.06em;
-  color: #eef2f7;
-  opacity: 0.95;
+  color: #d9e0ea;
+  opacity: 1;
   pointer-events: none;
   user-select: none;
   z-index: 0;
   transform: translateY(2px);
   font-variant-numeric: tabular-nums;
 }
-.cal-cell.outside .cell-watermark { color: #e2e8f0; opacity: 0.45; }
-.cal-cell.today .cell-watermark { color: #dbeafe; opacity: 1; }
-.cal-cell.selected .cell-watermark { color: #e0e7ff; }
+.cal-cell.outside .cell-watermark { color: #cbd5e1; opacity: 0.55; }
+.cal-cell.today .cell-watermark { color: #bfdbfe; opacity: 1; }
+.cal-cell.selected .cell-watermark { color: #c7d2fe; }
 
 .cell-plus {
   position: absolute;
@@ -360,10 +360,10 @@
 [data-theme="dark"] .cal-cell.outside { background: #0f172a; opacity: 0.45; }
 [data-theme="dark"] .cal-cell.today { background: #162e4a; border-color: #2ea2e6; }
 [data-theme="dark"] .cal-cell.selected { border-color: #38bdf8; }
-[data-theme="dark"] .cell-watermark { color: #1e334d; opacity: 0.95; }
-[data-theme="dark"] .cal-cell.outside .cell-watermark { color: #162a44; opacity: 0.55; }
-[data-theme="dark"] .cal-cell.today .cell-watermark { color: #12365f; opacity: 1; }
-[data-theme="dark"] .cal-cell.selected .cell-watermark { color: #243a5a; }
+[data-theme="dark"] .cell-watermark { color: #2a4a6b; opacity: 1; }
+[data-theme="dark"] .cal-cell.outside .cell-watermark { color: #1e334d; opacity: 0.65; }
+[data-theme="dark"] .cal-cell.today .cell-watermark { color: #1e5a8a; opacity: 1; }
+[data-theme="dark"] .cal-cell.selected .cell-watermark { color: #334a6b; }
 [data-theme="dark"] .cell-summary { background: linear-gradient(to top, rgba(30,41,59,0.55), transparent); border-color: rgba(51,65,85,0.6); }
 [data-theme="dark"] .event-badge.sale { background: rgba(12,42,68,0.5); color: #7dd3fc; border-color: rgba(26,74,107,0.6); }
 [data-theme="dark"] .event-badge.delivery { background: rgba(15,46,34,0.5); color: #6ee7b7; border-color: rgba(26,77,58,0.6); }
