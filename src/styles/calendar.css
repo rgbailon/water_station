@@ -194,12 +194,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  opacity: 0.92;
 }
-.event-badge.sale { background: #e0f2fe; color: #0c4a6e; border-color: #bae6fd; }
-.event-badge.delivery { background: #dcfce7; color: #065f46; border-color: #a7f3d0; }
-.event-badge.expense { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
-.event-badge.hiram { background: #fef3c7; color: #92400e; border-color: #fde68a; }
-.event-badge.maintenance { background: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
+/* translucent so watermark date stays visible */
+.event-badge.sale { background: rgba(224,242,254,0.55); color: #0c4a6e; border-color: rgba(186,230,253,0.7); }
+.event-badge.delivery { background: rgba(220,252,231,0.55); color: #065f46; border-color: rgba(167,243,208,0.7); }
+.event-badge.expense { background: rgba(254,226,226,0.55); color: #991b1b; border-color: rgba(254,202,202,0.7); }
+.event-badge.hiram { background: rgba(254,243,199,0.55); color: #92400e; border-color: rgba(253,230,138,0.7); }
+.event-badge.maintenance { background: rgba(237,233,254,0.55); color: #5b21b6; border-color: rgba(221,214,254,0.7); }
 .event-badge .e-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .sale .e-dot { background: var(--blue-600); }
 .delivery .e-dot { background: var(--green); }
@@ -216,10 +220,11 @@
   justify-content: space-between;
   margin-top: auto;
   padding-top: 4px;
-  border-top: 1px dashed var(--slate-200);
+  border-top: 1px dashed rgba(226,232,240,0.7);
   position: relative;
   z-index: 1;
-  background: linear-gradient(to top, rgba(255,255,255,0.85), transparent);
+  background: linear-gradient(to top, rgba(255,255,255,0.55), rgba(255,255,255,0));
+  backdrop-filter: blur(1px);
   border-radius: 0 0 6px 6px;
 }
 .cell-summary b { color: var(--slate-900); }
@@ -230,8 +235,12 @@
   color: var(--slate-500);
   text-align: center;
   padding: 2px;
-  background: var(--slate-100);
+  background: rgba(241,245,249,0.6);
+  backdrop-filter: blur(2px);
+  border: 1px solid rgba(226,232,240,0.6);
   border-radius: 6px;
+  position: relative;
+  z-index: 1;
 }
 
 @media (max-width: 720px) {
@@ -355,12 +364,13 @@
 [data-theme="dark"] .cal-cell.outside .cell-watermark { color: #162a44; opacity: 0.55; }
 [data-theme="dark"] .cal-cell.today .cell-watermark { color: #12365f; opacity: 1; }
 [data-theme="dark"] .cal-cell.selected .cell-watermark { color: #243a5a; }
-[data-theme="dark"] .cell-summary { background: linear-gradient(to top, rgba(30,41,59,0.85), transparent); border-color: #334155; }
-[data-theme="dark"] .event-badge.sale { background: #0c2a44; color: #7dd3fc; border-color: #1a4a6b; }
-[data-theme="dark"] .event-badge.delivery { background: #0f2e22; color: #6ee7b7; border-color: #1a4d3a; }
-[data-theme="dark"] .event-badge.expense { background: #3a1a1a; color: #fca5a5; border-color: #5a2a2a; }
-[data-theme="dark"] .event-badge.hiram { background: #3a2a0a; color: #fcd34d; border-color: #5a4a1a; }
-[data-theme="dark"] .event-badge.maintenance { background: #1e1a3a; color: #c4b5fd; border-color: #3a2a5a; }
+[data-theme="dark"] .cell-summary { background: linear-gradient(to top, rgba(30,41,59,0.55), transparent); border-color: rgba(51,65,85,0.6); }
+[data-theme="dark"] .event-badge.sale { background: rgba(12,42,68,0.5); color: #7dd3fc; border-color: rgba(26,74,107,0.6); }
+[data-theme="dark"] .event-badge.delivery { background: rgba(15,46,34,0.5); color: #6ee7b7; border-color: rgba(26,77,58,0.6); }
+[data-theme="dark"] .event-badge.expense { background: rgba(58,26,26,0.5); color: #fca5a5; border-color: rgba(90,42,42,0.6); }
+[data-theme="dark"] .event-badge.hiram { background: rgba(58,42,10,0.5); color: #fcd34d; border-color: rgba(90,74,26,0.6); }
+[data-theme="dark"] .event-badge.maintenance { background: rgba(30,26,58,0.5); color: #c4b5fd; border-color: rgba(58,42,90,0.6); }
+[data-theme="dark"] .more-count { background: rgba(30,41,59,0.5); border-color: rgba(51,65,85,0.5); color: #94a3b8; }
 [data-theme="dark"] .btn-cal-nav,
 [data-theme="dark"] .btn-today,
 [data-theme="dark"] .filter-pill { background: var(--white); border-color: var(--slate-200); color: var(--slate-700); }
