@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { peso } from '../utils/dateUtils'
 import StockModal from './StockModal'
+import { exportInventoryExcel } from '../utils/export'
 
 export default function InventoryView({ inventory, onUpdate }) {
   const [showModal, setShowModal] = useState(false)
@@ -25,7 +26,10 @@ export default function InventoryView({ inventory, onUpdate }) {
           <h2>📦 Inventory & Supplies</h2>
           <p>Track filled/empty gallons, bottles, caps & filters • Low stock highlighted in red</p>
         </div>
-        <button className="btn btn-primary" style={{ background: 'var(--blue-600)', color: 'white' }} onClick={handleOpenAdd}>+ Add Stock</button>
+        <div style={{ display:'flex', gap:8 }}>
+          <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }} onClick={()=> exportInventoryExcel(inventory)} title="Download professional spreadsheet (Excel .xls)">⬇ Spreadsheet</button>
+          <button className="btn btn-primary" style={{ background: 'var(--blue-600)', color: 'white' }} onClick={handleOpenAdd}>+ Add Stock</button>
+        </div>
       </div>
       <div className="inventory-grid">
         {inventory.map(item => {

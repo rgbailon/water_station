@@ -1,6 +1,7 @@
 import { peso } from '../utils/dateUtils'
+import { exportReportsExcel } from '../utils/export'
 
-export default function ReportsView() {
+export default function ReportsView({ events, inventory }) {
   const bars = [
     { label: 'Monbon', value: 3850, max: 4000, color: 'var(--blue-600)' },
     { label: 'Patag', value: 2100, max: 4000, color: 'var(--teal)' },
@@ -16,8 +17,8 @@ export default function ReportsView() {
           <p>September 2026 • Export ready for printing • Data from calendar events</p>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }}>🖨 Print</button>
-          <button className="btn btn-primary" style={{ background:'var(--slate-900)', color:'white' }}>⬇ Export Excel</button>
+          <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }} onClick={()=> window.print()}>🖨 Print</button>
+          <button className="btn btn-primary" style={{ background:'var(--slate-900)', color:'white' }} onClick={()=> events && inventory && exportReportsExcel({ events, inventory })} title="Download professional spreadsheet (Excel .xls)">⬇ Export Excel</button>
         </div>
       </div>
       <div className="reports-grid">

@@ -1,4 +1,5 @@
 import { hiramRecords } from '../data/mockData'
+import { exportHiramExcel } from '../utils/export'
 
 export default function HiramView() {
   return (
@@ -8,7 +9,10 @@ export default function HiramView() {
           <h2>🤝 Hiram Tracker (Borrowed Gallons)</h2>
           <p>Know who has your gallons • Critical for Irosin deliveries • Filter by barangay</p>
         </div>
-        <button className="btn btn-primary" style={{ background: 'var(--amber)', color: '#78350f', border:'1px solid #fde68a' }}>+ Record Hiram</button>
+        <div style={{ display:'flex', gap:8 }}>
+          <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }} onClick={()=> exportHiramExcel(hiramRecords)} title="Download professional spreadsheet (Excel .xls)">⬇ Spreadsheet</button>
+          <button className="btn btn-primary" style={{ background: 'var(--amber)', color: '#78350f', border:'1px solid #fde68a' }}>+ Record Hiram</button>
+        </div>
       </div>
       <div className="table-wrap">
         <table className="table">

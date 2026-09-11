@@ -1,6 +1,7 @@
 import ThemeToggle from './ThemeToggle'
+import { exportCalendarExcel, exportAllBackup } from '../utils/export'
 
-export default function Header({ onExport, onPrint, theme, onToggleTheme, printDateLabel }) {
+export default function Header({ onExport, onPrint, theme, onToggleTheme, printDateLabel, events, inventory }) {
   return (
     <header className="app-header">
       <div className="header-left">
@@ -16,7 +17,8 @@ export default function Header({ onExport, onPrint, theme, onToggleTheme, printD
         <button className="btn btn-ghost" onClick={onPrint} title={`Print daily sheet for ${printDateLabel}`}>
           🖨 Print Sheet
         </button>
-        <button className="btn btn-ghost" onClick={() => alert('Backup exported! (JSON will be downloadable when DB is connected)')}>⬇ Export</button>
+        <button className="btn btn-ghost" onClick={() => { if (events) exportCalendarExcel(events); }} title="Download spreadsheet (Excel .xls) — professional formatted">⬇ Export</button>
+        <button className="btn btn-ghost" onClick={() => { if (events && inventory) exportAllBackup({ events, inventory }) }} title="Download JSON backup (full DB)">⬇ Backup</button>
         <button className="btn btn-primary" onClick={onExport}><span className="plus">+</span> New Entry</button>
       </div>
     </header>

@@ -12,6 +12,7 @@ import DailyPrintSheet from './components/DailyPrintSheet'
 import { initialEvents, inventoryItems as initialInventory, hiramRecords } from './data/mockData'
 import DashboardView from './components/DashboardView'
 import { addMonths, subMonths, formatMonthYear, formatISO, parseDate, getEventsForDate, peso } from './utils/dateUtils'
+import { exportCalendarExcel } from './utils/export'
 
 export default function App() {
   const [theme, toggleTheme] = useTheme()
@@ -76,7 +77,7 @@ export default function App() {
 
   return (
     <>
-      <Header onExport={() => setModalDate(selectedDate)} onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} />
+      <Header onExport={() => setModalDate(selectedDate)} onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} />
 
       <div className="app-shell">
         <Sidebar active={activeTab} onChange={setActiveTab} stats={stats} />
@@ -102,6 +103,7 @@ export default function App() {
                   <button className="btn-today" onClick={()=>{const t=new Date(); setCurrentDate(t); setSelectedDate(t)}}>Today</button>
                 </div>
                 <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                  <button className="btn-xs" style={{ padding:'8px 12px', fontSize:'13px' }} onClick={()=> exportCalendarExcel(events)} title="Download professional spreadsheet (Excel .xls)">⬇ Spreadsheet</button>
                   <button className="btn-today" onClick={()=>setModalDate(selectedDate)} style={{ background:'var(--blue-600)', color:'white', borderColor:'var(--blue-600)', display:'inline-flex', alignItems:'center', gap:'6px' }}><span className="plus">+</span> Add on {selectedDate.getDate()}</button>
                   <div className="cal-filters">
                     {[
