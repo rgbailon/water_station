@@ -112,7 +112,7 @@
   min-height: 148px;
   aspect-ratio: 1 / 1.05;
   background: var(--white);
-  border: 1px solid var(--slate-200);
+  border: 2.5px solid var(--slate-300);
   border-radius: 14px;
   padding: 10px 8px 8px;
   cursor: pointer;
@@ -125,9 +125,9 @@
   isolation: isolate;
 }
 .cal-cell:hover { border-color: var(--blue-500); box-shadow: 0 0 0 3px rgba(46,162,230,0.12); transform: translateY(-1px); }
-.cal-cell.outside { background: #f8fafc; opacity: 0.55; }
-.cal-cell.today { border-color: var(--blue-500); background: #f0f8fe; box-shadow: 0 0 0 2px rgba(46,162,230,0.18); }
-.cal-cell.selected { border-color: var(--blue-700); box-shadow: 0 0 0 3px rgba(14,74,122,0.18); }
+.cal-cell.outside { background: #f8fafc; opacity: 0.55; border-color: var(--slate-200); }
+.cal-cell.today { border-color: var(--blue-500); background: #f0f8fe; box-shadow: 0 0 0 2px rgba(46,162,230,0.18); border-width: 2.5px; }
+.cal-cell.selected { border-color: var(--blue-700); box-shadow: 0 0 0 3px rgba(14,74,122,0.18); border-width: 2.5px; }
 
 /* Paper-calendar watermark date — big, centered, pale background image */
 .cell-watermark {
