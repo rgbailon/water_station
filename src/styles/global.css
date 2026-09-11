@@ -158,3 +158,27 @@ a { color: inherit; }
 .theme-toggle .icon-moon { right: 6px; }
 [data-theme="light"] .theme-toggle .icon-moon { opacity: 0.35; }
 [data-theme="dark"] .theme-toggle .icon-sun { opacity: 0.35; }
+
+/* ===== Plus symbol — bigger & perfectly centered ===== */
+.btn .plus,
+.btn-today .plus,
+.btn-day-primary .plus,
+.btn-day-ghost .plus,
+.btn-primary .plus {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  text-align: center;
+  transform: translateY(-0.5px);
+}
+.btn-day-primary .plus,
+.btn-primary .plus {
+  font-size: 17px;
+  width: 19px;
+  height: 19px;
+}

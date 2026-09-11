@@ -17,7 +17,7 @@ export default function Header({ onExport, onPrint, theme, onToggleTheme, printD
           🖨 Print Sheet
         </button>
         <button className="btn btn-ghost" onClick={() => alert('Backup exported! (JSON will be downloadable when DB is connected)')}>⬇ Export</button>
-        <button className="btn btn-primary" onClick={onExport}>+ New Entry</button>
+        <button className="btn btn-primary" onClick={onExport}><span className="plus">+</span> New Entry</button>
       </div>
     </header>
   )

@@ -9,15 +9,17 @@ import HiramView from './components/HiramView'
 import ExpensesView from './components/ExpensesView'
 import ReportsView from './components/ReportsView'
 import DailyPrintSheet from './components/DailyPrintSheet'
-import { initialEvents } from './data/mockData'
-import { addMonths, subMonths, formatMonthYear, formatISO, formatPHLong, parseDate, getEventsForDate, peso } from './utils/dateUtils'
+import { initialEvents, inventoryItems as initialInventory, hiramRecords } from './data/mockData'
+import DashboardView from './components/DashboardView'
+import { addMonths, subMonths, formatMonthYear, formatISO, parseDate, getEventsForDate, peso } from './utils/dateUtils'
 
 export default function App() {
   const [theme, toggleTheme] = useTheme()
-  const [activeTab, setActiveTab] = useState('calendar')
+  const [activeTab, setActiveTab] = useState('dashboard')
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [events, setEvents] = useState(initialEvents)
+  const [inventory, setInventory] = useState(initialInventory)
   const [modalDate, setModalDate] = useState(null)
   const [editingEvent, setEditingEvent] = useState(null)
   const [filters, setFilters] = useState({ sale: true, delivery: true, expense: true, hiram: true, maintenance: true })
@@ -47,18 +49,29 @@ export default function App() {
 
   const toggleFilter = (key) => setFilters(s => ({ ...s, [key]: !s[key] }))
 
-  const stats = {
-    filled: 78,
-    empty: 27,
-    hiram: 13,
-    lows: 2,
-    todaySales: peso(dayEvents.filter(e=>e.type==='sale'||e.type==='delivery').reduce((s,e)=>s+e.amount,0)),
-    monthSales: peso(monthEvents.filter(e=>e.type==='sale'||e.type==='delivery').reduce((s,e)=>s+e.amount,0)),
-  }
+  const stats = useMemo(() => {
+    const totalFilled = inventory.reduce((s, it) => s + it.stockFilled, 0)
+    const totalEmpty = inventory.reduce((s, it) => s + it.stockEmpty, 0)
+    const lows = inventory.filter(it => it.stockFilled <= it.threshold).length
+    const hiramOutstanding = hiramRecords.filter(r=>r.status!=='returned').reduce((s,r)=> s + (r.borrowed - r.returned), 0)
+    return {
+      filled: totalFilled,
+      empty: totalEmpty,
+      hiram: hiramOutstanding,
+      lows,
+      todaySales: peso(dayEvents.filter(e=>e.type==='sale'||e.type==='delivery').reduce((s,e)=>s+e.amount,0)),
+      monthSales: peso(monthEvents.filter(e=>e.type==='sale'||e.type==='delivery').reduce((s,e)=>s+e.amount,0)),
+    }
+  }, [inventory, dayEvents, monthEvents])
 
   const handlePrint = () => {
     // Always print the currently selected calendar date so it matches the accurate date for the day (Asia/Manila)
     setPrintDate(new Date(selectedDate))
+  }
+
+  const handleInventoryUpdate = (updater) => {
+    setInventory(prev => typeof updater === 'function' ? updater(prev) : updater)
+    showToast('Inventory updated • Saved locally')
   }
 
   return (
@@ -69,33 +82,18 @@ export default function App() {
         <Sidebar active={activeTab} onChange={setActiveTab} stats={stats} />
 
         <main className="main-card">
+          {activeTab === 'dashboard' && (
+            <DashboardView
+              events={events}
+              inventory={inventory}
+              currentDate={currentDate}
+              onAddEntry={() => { setEditingEvent(null); setModalDate(selectedDate) }}
+            />
+          )}
+
           {activeTab === 'calendar' && (
             <>
-              {/* Stats */}
-              <div className="stats-grid">
-                <div className="stat-card blue">
-                  <div className="stat-top"><span className="stat-label">Today&apos;s Sales</span><span className="stat-icon">💧</span></div>
-                  <div className="stat-value">{stats.todaySales}</div>
-                  <div className="stat-trend trend-up">↗ +12% vs yesterday</div>
-                </div>
-                <div className="stat-card green">
-                  <div className="stat-top"><span className="stat-label">Month Sales ({formatMonthYear(currentDate)})</span><span className="stat-icon">📦</span></div>
-                  <div className="stat-value">{stats.monthSales}</div>
-                  <div className="stat-trend trend-up">↗ {monthEvents.length} entries</div>
-                </div>
-                <div className="stat-card amber">
-                  <div className="stat-top"><span className="stat-label">Hiram Outstanding</span><span className="stat-icon">🤝</span></div>
-                  <div className="stat-value">13 gals</div>
-                  <div className="stat-trend" style={{ color:'#d97706' }}>3 customers</div>
-                </div>
-                <div className="stat-card red">
-                  <div className="stat-top"><span className="stat-label">Expenses (Month)</span><span className="stat-icon">💸</span></div>
-                  <div className="stat-value">₱6,300</div>
-                  <div className="stat-trend trend-down">↘ Fuel + electric</div>
-                </div>
-              </div>
-
-              {/* Calendar Toolbar */}
+              {/* Calendar Toolbar — sales KPIs now live in Dashboard */}
               <div className="calendar-toolbar">
                 <div className="cal-left">
                   <button className="btn-cal-nav" onClick={()=>setCurrentDate(d=>subMonths(d,1))}>‹</button>
@@ -104,7 +102,7 @@ export default function App() {
                   <button className="btn-today" onClick={()=>{const t=new Date(); setCurrentDate(t); setSelectedDate(t)}}>Today</button>
                 </div>
                 <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-                  <button className="btn-today" onClick={()=>setModalDate(selectedDate)} style={{ background:'var(--blue-600)', color:'white', borderColor:'var(--blue-600)' }}>+ Add on {selectedDate.getDate()}</button>
+                  <button className="btn-today" onClick={()=>setModalDate(selectedDate)} style={{ background:'var(--blue-600)', color:'white', borderColor:'var(--blue-600)', display:'inline-flex', alignItems:'center', gap:'6px' }}><span className="plus">+</span> Add on {selectedDate.getDate()}</button>
                   <div className="cal-filters">
                     {[
                       {k:'sale', l:'Sale'}, {k:'delivery', l:'Delivery'}, {k:'expense', l:'Expense'}, {k:'hiram', l:'Hiram'}, {k:'maintenance', l:'Maint.'}
@@ -135,8 +133,8 @@ export default function App() {
                     <p>{dayEvents.length} entries • {peso(dayEvents.reduce((s,e)=>s+(e.type==='sale'||e.type==='delivery'?e.amount:0),0))} sales total</p>
                   </div>
                   <div style={{ display:'flex', gap:8 }}>
-                    <button className="btn btn-ghost" style={{ background:'white', color:'var(--slate-700)', border:'1px solid var(--slate-200)', padding:'9px 14px', fontSize:'13px' }} onClick={handlePrint} title="Print paper sheet for this date">🖨 Print Sheet for this date</button>
-                    <button className="btn btn-primary" style={{ background:'var(--slate-900)', color:'white', padding:'9px 14px', fontSize:'13px' }} onClick={()=>{ setEditingEvent(null); setModalDate(selectedDate)}}>+ Add Entry</button>
+                    <button className="btn btn-day-ghost" onClick={handlePrint} title="Print paper sheet for this date">🖨 Print Sheet for this date</button>
+                    <button className="btn btn-day-primary" onClick={()=>{ setEditingEvent(null); setModalDate(selectedDate)}}><span className="plus">+</span> Add Entry</button>
                   </div>
                 </div>
 
@@ -167,10 +165,10 @@ export default function App() {
             </>
           )}
 
-          {activeTab==='inventory' && <InventoryView />}
+          {activeTab==='inventory' && <InventoryView inventory={inventory} onUpdate={handleInventoryUpdate} />}
           {activeTab==='hiram' && <HiramView />}
           {activeTab==='expenses' && <ExpensesView />}
-          {activeTab==='reports' && <ReportsView />}
+          {activeTab==='reports' && <ReportsView events={events} inventory={inventory} />}
         </main>
       </div>
 

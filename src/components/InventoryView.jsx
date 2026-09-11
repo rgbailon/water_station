@@ -1,7 +1,23 @@
-import { inventoryItems } from '../data/mockData'
+import { useState } from 'react'
 import { peso } from '../utils/dateUtils'
+import StockModal from './StockModal'
 
-export default function InventoryView() {
+export default function InventoryView({ inventory, onUpdate }) {
+  const [showModal, setShowModal] = useState(false)
+  const [editItem, setEditItem] = useState(null)
+
+  const handleOpenAdd = () => { setEditItem(null); setShowModal(true) }
+  const handleOpenEdit = (item) => { setEditItem(item); setShowModal(true) }
+
+  const handleSave = (updated, newItem) => {
+    if (newItem) {
+      onUpdate(prev => [...prev, newItem])
+    } else if (updated) {
+      onUpdate(prev => prev.map(p => p.id === updated.id ? updated : p))
+    }
+    setShowModal(false); setEditItem(null)
+  }
+
   return (
     <div>
       <div className="section-head">
@@ -9,10 +25,10 @@ export default function InventoryView() {
           <h2>📦 Inventory & Supplies</h2>
           <p>Track filled/empty gallons, bottles, caps & filters • Low stock highlighted in red</p>
         </div>
-        <button className="btn btn-primary" style={{ background: 'var(--blue-600)', color: 'white' }} onClick={()=>alert('Add Stock modal - connect to DB later')}>+ Add Stock</button>
+        <button className="btn btn-primary" style={{ background: 'var(--blue-600)', color: 'white' }} onClick={handleOpenAdd}>+ Add Stock</button>
       </div>
       <div className="inventory-grid">
-        {inventoryItems.map(item => {
+        {inventory.map(item => {
           const total = item.stockFilled + item.stockEmpty
           const pct = total === 0 ? 0 : Math.round((item.stockFilled / Math.max(total, item.threshold*3)) * 100)
           const isLow = item.stockFilled <= item.threshold
@@ -37,13 +53,15 @@ export default function InventoryView() {
                 <div className="progress"><div className={isLow?'crit':pct<50?'warn':'ok'} style={{ width: `${Math.min(100, pct)}%` }}></div></div>
               </div>
               <div className="inv-actions">
-                <button className="btn-soft" onClick={()=>alert('Adjust stock - DB later')}>Adjust</button>
-                <button className="btn-soft primary">Restock</button>
+                <button className="btn-soft" onClick={()=>handleOpenEdit(item)}>Adjust</button>
+                <button className="btn-soft primary" onClick={()=>handleOpenEdit(item)}>Restock</button>
               </div>
             </div>
           )
         })}
       </div>
+
+      <StockModal isOpen={showModal} onClose={()=>{ setShowModal(false); setEditItem(null)}} items={inventory} initialItem={editItem} onSave={handleSave} />
     </div>
   )
 }

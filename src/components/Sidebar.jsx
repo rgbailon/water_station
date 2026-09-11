@@ -1,9 +1,10 @@
 const nav = [
+  { id: 'dashboard', label: 'Dashboard', sub: 'Overview & Charts', icon: '📊' },
   { id: 'calendar', label: 'Calendar', sub: 'Sales & Schedule', icon: '📅' },
   { id: 'inventory', label: 'Inventory', sub: 'Stock & Supplies', icon: '📦' },
   { id: 'hiram', label: 'Hiram Tracker', sub: 'Borrowed Gallons', icon: '🤝' },
   { id: 'expenses', label: 'Expenses', sub: 'Costs & Bills', icon: '💸' },
-  { id: 'reports', label: 'Reports', sub: 'Analytics', icon: '📊' },
+  { id: 'reports', label: 'Reports', sub: 'Analytics', icon: '📈' },
 ]
 
 export default function Sidebar({ active, onChange, stats }) {

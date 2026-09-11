@@ -142,16 +142,21 @@
 }
 .today .cell-date { background: var(--blue-600); color: white; font-weight: 700; }
 .cell-plus {
-  width: 20px; height: 20px;
+  width: 28px; height: 28px;
   border-radius: 50%;
   background: var(--slate-900);
   color: white;
   display: grid; place-items: center;
-  font-size: 12px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.15s;
+  text-align: center;
+  /* ensure perfect centering for + glyph */
+  padding-bottom: 1px;
 }
-.cal-cell:hover .cell-plus { opacity: 1; }
+.cal-cell:hover .cell-plus { opacity: 1; transform: scale(1.05); }
 
 .cell-events {
   display: flex;
@@ -214,28 +219,6 @@
   .event-badge { padding: 3px; justify-content: center; }
   .cell-summary { font-size: 10px; }
 }
-
-/* ===== Dark overrides ===== */
-[data-theme="dark"] .cal-cell.outside { background: #0f172a; opacity: 0.45; }
-[data-theme="dark"] .cal-cell.today { background: #162e4a; border-color: #2ea2e6; }
-[data-theme="dark"] .cal-cell.selected { border-color: #38bdf8; }
-[data-theme="dark"] .event-badge.sale { background: #0c2a44; color: #7dd3fc; border-color: #1a4a6b; }
-[data-theme="dark"] .event-badge.delivery { background: #0f2e22; color: #6ee7b7; border-color: #1a4d3a; }
-[data-theme="dark"] .event-badge.expense { background: #3a1a1a; color: #fca5a5; border-color: #5a2a2a; }
-[data-theme="dark"] .event-badge.hiram { background: #3a2a0a; color: #fcd34d; border-color: #5a4a1a; }
-[data-theme="dark"] .event-badge.maintenance { background: #1e1a3a; color: #c4b5fd; border-color: #3a2a5a; }
-[data-theme="dark"] .btn-cal-nav,
-[data-theme="dark"] .btn-today,
-[data-theme="dark"] .filter-pill { background: var(--white); border-color: var(--slate-200); color: var(--slate-700); }
-[data-theme="dark"] .filter-pill.active { color: white; }
-[data-theme="dark"] .day-detail { background: #0f172a; }
-[data-theme="dark"] .day-event-card { background: var(--white); }
-[data-theme="dark"] .day-event-card.sale .icon { background: #0c2a44; }
-[data-theme="dark"] .day-event-card.delivery .icon { background: #0f2e22; }
-[data-theme="dark"] .day-event-card.expense .icon { background: #3a1a1a; }
-[data-theme="dark"] .day-event-card.hiram .icon { background: #3a2a0a; }
-[data-theme="dark"] .day-event-card.maintenance .icon { background: #1e1a3a; }
-[data-theme="dark"] .empty-day { background: var(--white); border-color: var(--slate-300); }
 
 /* ===== Selected Day Detail ===== */
 .day-detail {
@@ -308,3 +291,64 @@
   border: 1px dashed var(--slate-300);
   border-radius: 12px;
 }
+
+/* ===== Day action buttons (fix plus visibility in dark) ===== */
+.btn-day-ghost {
+  background: white;
+  color: var(--slate-700);
+  border: 1px solid var(--slate-200);
+  padding: 9px 14px;
+  font-size: 13px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-day-ghost:hover { background: var(--slate-50); }
+.btn-day-primary {
+  background: var(--slate-900);
+  color: white;
+  padding: 9px 14px;
+  font-size: 13px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--slate-900);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-day-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+
+/* ===== Dark overrides — MUST stay at end for cascade ===== */
+[data-theme="dark"] .cal-cell.outside { background: #0f172a; opacity: 0.45; }
+[data-theme="dark"] .cal-cell.today { background: #162e4a; border-color: #2ea2e6; }
+[data-theme="dark"] .cal-cell.selected { border-color: #38bdf8; }
+[data-theme="dark"] .event-badge.sale { background: #0c2a44; color: #7dd3fc; border-color: #1a4a6b; }
+[data-theme="dark"] .event-badge.delivery { background: #0f2e22; color: #6ee7b7; border-color: #1a4d3a; }
+[data-theme="dark"] .event-badge.expense { background: #3a1a1a; color: #fca5a5; border-color: #5a2a2a; }
+[data-theme="dark"] .event-badge.hiram { background: #3a2a0a; color: #fcd34d; border-color: #5a4a1a; }
+[data-theme="dark"] .event-badge.maintenance { background: #1e1a3a; color: #c4b5fd; border-color: #3a2a5a; }
+[data-theme="dark"] .btn-cal-nav,
+[data-theme="dark"] .btn-today,
+[data-theme="dark"] .filter-pill { background: var(--white); border-color: var(--slate-200); color: var(--slate-700); }
+[data-theme="dark"] .filter-pill.active { color: white; }
+[data-theme="dark"] .day-detail { background: #0f172a; }
+[data-theme="dark"] .day-event-card { background: var(--white); border-color: var(--slate-200); }
+[data-theme="dark"] .day-event-card.sale .icon { background: #0c2a44; }
+[data-theme="dark"] .day-event-card.delivery .icon { background: #0f2e22; }
+[data-theme="dark"] .day-event-card.expense .icon { background: #3a1a1a; }
+[data-theme="dark"] .day-event-card.hiram .icon { background: #3a2a0a; }
+[data-theme="dark"] .day-event-card.maintenance .icon { background: #1e1a3a; }
+[data-theme="dark"] .empty-day { background: var(--white); border-color: var(--slate-300); }
+[data-theme="dark"] .cell-plus { background: #f1f5f9; color: #0f172a; border: 1px solid #334155; font-weight: 800; }
+[data-theme="dark"] .btn-day-ghost { background: var(--white); color: #cbd5e1; border-color: var(--slate-200); }
+[data-theme="dark"] .btn-day-ghost:hover { background: #233044; }
+[data-theme="dark"] .btn-day-primary { background: #f1f5f9; color: #0f172a; border-color: #f1f5f9; }
+[data-theme="dark"] .btn-day-primary:hover { background: #e2e8f0; }
+[data-theme="dark"] .btn-xs { background: var(--white); border-color: var(--slate-200); color: var(--slate-700); }
+[data-theme="dark"] .btn-xs:hover { background: #233044; }
+[data-theme="dark"] .btn-xs.danger { border-color: #5a2a2a; color: #fca5a5; }
+[data-theme="dark"] .btn-xs.danger:hover { background: #3a1a1a; }
