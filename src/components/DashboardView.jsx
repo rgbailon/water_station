@@ -293,8 +293,8 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
               const pct = total===0?0: Math.round((it.stockFilled / Math.max(total, it.threshold*3))*100)
               const isLow = it.stockFilled <= it.threshold
               return (
-                <div key={it.id} style={{ display:'flex', gap:10, alignItems:'center' }}>
-                  <div style={{ width:36, height:36, borderRadius:9, display:'grid', placeItems:'center', background:'var(--slate-100)', border:'1px solid var(--slate-200)', fontSize:16, filter:'grayscale(100%)' }}>{it.icon}</div>
+                <div key={it.id} className="dash-inv-row" style={{ display:'flex', gap:10, alignItems:'center' }}>
+                  <div className="dash-icon" style={{ width:36, height:36, borderRadius:9, display:'grid', placeItems:'center', background:'var(--slate-100)', border:'1px solid var(--slate-200)', fontSize:16, filter:'grayscale(100%)', transition:'filter 0.2s ease, background 0.2s ease, border-color 0.2s ease' }}>{it.icon}</div>
                   <div style={{ flex:1 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:700 }}>
                       <span style={{ color:'var(--slate-900)' }}>{it.name}</span>
@@ -314,8 +314,8 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
           <h3>Recent Transactions</h3>
           <div style={{ display:'grid', gap:8 }}>
             {recent.map(ev=> (
-              <div key={ev.id} style={{ display:'flex', gap:10, alignItems:'center', padding:'10px 12px', background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10 }}>
-                <span style={{ width:32, height:32, borderRadius:8, display:'grid', placeItems:'center', background:'white', border:'1px solid var(--slate-200)', fontSize:14, filter:'grayscale(100%)' }}>{ev.icon}</span>
+              <div key={ev.id} className="dash-recent-row" style={{ display:'flex', gap:10, alignItems:'center', padding:'10px 12px', background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10 }}>
+                <span className="dash-recent-icon" style={{ width:32, height:32, borderRadius:8, display:'grid', placeItems:'center', background:'white', border:'1px solid var(--slate-200)', fontSize:14, filter:'grayscale(100%)', transition:'filter 0.2s ease, background 0.2s ease' }}>{ev.icon}</span>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:12.5, fontWeight:700, color:'var(--slate-900)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ev.title}</div>
                   <div style={{ fontSize:11, color:'var(--slate-500)' }}>{ev.date} • {ev.customer || '—'} {ev.note?`• ${ev.note.slice(0,22)}` : ''}</div>
