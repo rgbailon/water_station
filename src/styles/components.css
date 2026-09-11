@@ -142,8 +142,10 @@
   border-radius: 11px;
   display: grid; place-items: center;
   font-size: 22px;
-  background: var(--blue-50);
-  border: 1px solid #dbeafe;
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  filter: grayscale(100%);
+  opacity: 0.95;
 }
 .inv-card h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--slate-900); }
 .inv-card p { margin: 2px 0 0; font-size: 12.5px; color: var(--slate-500); }
@@ -308,7 +310,7 @@
 [data-theme="dark"] .inv-card { background: #1e293b; border-color: #334155; }
 [data-theme="dark"] .inv-card h3 { color: #f1f5f9; }
 [data-theme="dark"] .inv-card p { color: #94a3b8; }
-[data-theme="dark"] .inv-icon { background: #162e4a; border-color: #2a4a6b; }
+[data-theme="dark"] .inv-icon { background: #1e293b; border-color: #334155; filter: grayscale(100%); }
 [data-theme="dark"] .inv-stat { background: #0f172a; border-color: #334155; }
 [data-theme="dark"] .inv-stat b { color: #f1f5f9; }
 [data-theme="dark"] .pill.green { background: #0f2e22; color: #6ee7b7; border-color: #1a4d3a; }

@@ -29,6 +29,7 @@
   display: grid;
   place-items: center;
   font-size: 22px;
+  filter: grayscale(100%);
 }
 
 .header-title h1 {
@@ -159,6 +160,7 @@
   font-size: 16px;
   background: var(--slate-100);
   flex-shrink: 0;
+  filter: grayscale(100%);
 }
 .nav-item.active .ico { background: white; box-shadow: var(--shadow-sm); }
 
@@ -231,11 +233,15 @@
 .stat-top { display: flex; justify-content: space-between; align-items: center; }
 .stat-icon {
   width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; font-size: 18px;
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  filter: grayscale(100%);
+  opacity: 0.95;
 }
-.blue .stat-icon { background: var(--blue-100); }
-.green .stat-icon { background: #dcfce7; }
-.amber .stat-icon { background: #fef3c7; }
-.red .stat-icon { background: #fee2e2; }
+.blue .stat-icon,
+.green .stat-icon,
+.amber .stat-icon,
+.red .stat-icon { background: var(--slate-100); border-color: var(--slate-200); }
 
 .stat-value { font-size: 22px; font-weight: 800; color: var(--slate-900); letter-spacing: -0.02em; }
 .stat-label { font-size: 12.5px; color: var(--slate-500); font-weight: 500; }
@@ -274,9 +280,10 @@
   color: #7dd3fc;
 }
 [data-theme="dark"] .nav-item.active .ico { background: #233044; }
-[data-theme="dark"] .green .stat-icon { background: #0f3a2a; }
-[data-theme="dark"] .amber .stat-icon { background: #451a03; }
-[data-theme="dark"] .red .stat-icon { background: #3f1a1a; }
+[data-theme="dark"] .stat-icon { background: #1e293b; border-color: #334155; }
+[data-theme="dark"] .green .stat-icon,
+[data-theme="dark"] .amber .stat-icon,
+[data-theme="dark"] .red .stat-icon { background: #1e293b; border-color: #334155; }
 
 /* ===== Mobile Nav Toggle ===== */
 .mobile-nav-toggle {

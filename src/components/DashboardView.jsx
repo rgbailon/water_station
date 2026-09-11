@@ -294,7 +294,7 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
               const isLow = it.stockFilled <= it.threshold
               return (
                 <div key={it.id} style={{ display:'flex', gap:10, alignItems:'center' }}>
-                  <div style={{ width:36, height:36, borderRadius:9, display:'grid', placeItems:'center', background:'var(--slate-100)', border:'1px solid var(--slate-200)', fontSize:16 }}>{it.icon}</div>
+                  <div style={{ width:36, height:36, borderRadius:9, display:'grid', placeItems:'center', background:'var(--slate-100)', border:'1px solid var(--slate-200)', fontSize:16, filter:'grayscale(100%)' }}>{it.icon}</div>
                   <div style={{ flex:1 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:700 }}>
                       <span style={{ color:'var(--slate-900)' }}>{it.name}</span>
@@ -315,7 +315,7 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
           <div style={{ display:'grid', gap:8 }}>
             {recent.map(ev=> (
               <div key={ev.id} style={{ display:'flex', gap:10, alignItems:'center', padding:'10px 12px', background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10 }}>
-                <span style={{ width:32, height:32, borderRadius:8, display:'grid', placeItems:'center', background:'white', border:'1px solid var(--slate-200)', fontSize:14 }}>{ev.icon}</span>
+                <span style={{ width:32, height:32, borderRadius:8, display:'grid', placeItems:'center', background:'white', border:'1px solid var(--slate-200)', fontSize:14, filter:'grayscale(100%)' }}>{ev.icon}</span>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:12.5, fontWeight:700, color:'var(--slate-900)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ev.title}</div>
                   <div style={{ fontSize:11, color:'var(--slate-500)' }}>{ev.date} • {ev.customer || '—'} {ev.note?`• ${ev.note.slice(0,22)}` : ''}</div>
