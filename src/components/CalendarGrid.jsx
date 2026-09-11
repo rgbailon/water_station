@@ -31,10 +31,8 @@ export default function CalendarGrid({ currentDate, events, selectedDate, onSele
                   className={`cal-cell ${isOutside ? 'outside' : ''} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}`}
                   onClick={() => onSelectDate(day)}
                 >
-                  <div className="cell-top">
-                    <span className="cell-date">{format(day, 'd')}</span>
-                    <span className="cell-plus" onClick={(e) => { e.stopPropagation(); onAddClick(day)}}>+</span>
-                  </div>
+                  <span className="cell-watermark" aria-hidden>{format(day, 'd')}</span>
+                  <span className="cell-plus" onClick={(e) => { e.stopPropagation(); onAddClick(day)}}>+</span>
                   <div className="cell-events">
                     {evs.slice(0, 3).map(ev => (
                       <div
