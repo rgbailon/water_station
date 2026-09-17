@@ -388,6 +388,45 @@ export function exportReportsExcel({ events, inventory }) {
   downloadBlob(html, `Tubig_Irosin_Reports_${sanitizeFilename(monthLabel)}_${monthKey}.xls`)
 }
 
+export function exportOrdersExcel(orders) {
+  const headers = ['Order Number', 'Date & Time', 'Customer', 'Phone', 'Address', 'Items', 'Quantity', 'Subtotal', 'Delivery Fee', 'Total', 'Payment', 'Schedule', 'Status', 'Canceled', 'Notes']
+  const rows = [...orders].sort((a, b) => b.date - a.date).map(o => {
+    // derive status like in ordersData but inline to avoid import cycle
+    let status = 'PENDING'
+    if (o.isCanceled) status = 'CANCELED'
+    else {
+      const elapsed = Date.now() - o.date
+      if (elapsed < 60000) status = 'Pending'
+      else if (elapsed < 120000) status = 'Order Confirmed'
+      else if (elapsed < 360000) status = 'Gallon Pick Up'
+      else if (elapsed < 720000) status = 'Out for Delivery'
+      else status = 'Delivered'
+    }
+    const d = new Date(o.date)
+    const datePH = d.toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    const itemsStr = o.items.map(it => {
+      const p = it.product || { name: `PID ${it.productId}` }
+      return `${p.name} x${it.quantity}`
+    }).join('; ')
+    const qtyTotal = o.items.reduce((s, it) => s + it.quantity, 0)
+    return [o.orderId, datePH, o.customerName, o.phone || '—', o.address || '—', itemsStr, String(qtyTotal), peso(o.subtotal), peso(o.deliveryFee), peso(o.total), o.payment, o.schedule, status, o.isCanceled ? 'YES' : 'NO', o.notes || '—']
+  })
+  const totalRevenue = orders.filter(o => !o.isCanceled).reduce((s, o) => s + o.total, 0)
+  const summary = [
+    { label: 'Total Orders', value: String(orders.length) },
+    { label: 'Canceled Orders', value: String(orders.filter(o => o.isCanceled).length) },
+    { label: 'Total Sales', value: peso(totalRevenue) },
+    { label: 'Average Order Value', value: orders.filter(o => !o.isCanceled).length ? peso(Math.round(totalRevenue / orders.filter(o => !o.isCanceled).length)) : '₱0' },
+  ]
+  const html = buildWorkbookSheet({
+    title: 'TUBIG IROSIN — CUSTOMER ORDERS',
+    subtitle: `${orders.length} orders • ${peso(totalRevenue)} total sales • All orders from this device`,
+    headers, rows, summary,
+    footer: 'Order status moves automatically: Pending → Confirmed → Picking up → Out for delivery → Delivered. You can cancel within the first 5 minutes.',
+  })
+  downloadBlob(html, `Tubig_Irosin_Orders_${new Date().toISOString().slice(0, 10)}.xls`)
+}
+
 export function exportAllBackup({ events, inventory }) {
   // JSON backup + also Excel combined? For now JSON
   const payload = { generated: nowPHString(), events, inventory }

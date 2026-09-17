@@ -107,7 +107,7 @@ export default function EventModal({ date, eventToEdit, onClose, onSave, onDelet
           </div>
 
           <div style={{ fontSize: '12px', color: 'var(--slate-500)', background: 'var(--slate-50)', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--slate-200)' }}>
-            💡 This will appear on the calendar as <b style={{ color: 'var(--slate-700)' }}>{tabs.find(t=>t.id===type)?.label}</b> for <b>{barangay || '—'}</b>. All data stays on this device — you can implement IndexedDB later without changing the UI.
+            💡 This will appear on the calendar as <b style={{ color: 'var(--slate-700)' }}>{tabs.find(t=>t.id===type)?.label}</b> for <b>{barangay || '—'}</b>. All data stays on this device and is saved automatically.
           </div>
         </div>
 

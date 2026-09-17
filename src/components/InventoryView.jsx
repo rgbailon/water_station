@@ -27,7 +27,7 @@ export default function InventoryView({ inventory, onUpdate }) {
           <p>Track filled/empty gallons, bottles, caps & filters • Low stock highlighted in red</p>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }} onClick={()=> exportInventoryExcel(inventory)} title="Download professional spreadsheet (Excel .xls)">⬇ Spreadsheet</button>
+          <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }} onClick={()=> exportInventoryExcel(inventory)} title="Download spreadsheet">⬇ Download</button>
           <button className="btn btn-primary" style={{ background: 'var(--blue-600)', color: 'white' }} onClick={handleOpenAdd}>+ Add Stock</button>
         </div>
       </div>

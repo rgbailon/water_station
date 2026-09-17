@@ -1,5 +1,4 @@
-// Mock data - will be replaced by IndexedDB later
-// All dates in 2026-09 for calendar demo
+// Sample data for demo — all dates in September 2026
 
 export const inventoryItems = [
   { id: 1, name: "5-Gal Round (Refill)", sku: "GAL-RND-5", price: 30, stockFilled: 42, stockEmpty: 18, threshold: 10, icon: "💧", unit: "gals" },

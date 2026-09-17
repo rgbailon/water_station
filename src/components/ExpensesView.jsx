@@ -12,7 +12,7 @@ export default function ExpensesView() {
           <p>Water, electricity, fuel, caps & maintenance • September 2026 total: <b style={{ color:'var(--slate-900)' }}>{peso(total)}</b></p>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }} onClick={()=> exportExpensesExcel(expensesList)} title="Download professional spreadsheet (Excel .xls)">⬇ Spreadsheet</button>
+          <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }} onClick={()=> exportExpensesExcel(expensesList)} title="Download spreadsheet">⬇ Download</button>
           <button className="btn btn-primary" style={{ background:'var(--red)', color:'white' }}>+ Add Expense</button>
         </div>
       </div>

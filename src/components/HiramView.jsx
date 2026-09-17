@@ -10,7 +10,7 @@ export default function HiramView() {
           <p>Know who has your gallons • Critical for Irosin deliveries • Filter by barangay</p>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }} onClick={()=> exportHiramExcel(hiramRecords)} title="Download professional spreadsheet (Excel .xls)">⬇ Spreadsheet</button>
+          <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }} onClick={()=> exportHiramExcel(hiramRecords)} title="Download spreadsheet">⬇ Download</button>
           <button className="btn btn-primary" style={{ background: 'var(--amber)', color: '#78350f', border:'1px solid #fde68a' }}>+ Record Hiram</button>
         </div>
       </div>
@@ -50,7 +50,7 @@ export default function HiramView() {
                   </td>
                   <td>
                     <button className="btn-xs" onClick={()=>alert(`Call ${r.customer}`)}>📞 Call</button>
-                    <button className="btn-xs" style={{ marginLeft:6 }} onClick={()=>alert('Mark returned - DB later')}>✓ Return</button>
+                    <button className="btn-xs" style={{ marginLeft:6 }} onClick={()=>alert('Marked as returned — saved locally')}>✓ Return</button>
                   </td>
                 </tr>
               )

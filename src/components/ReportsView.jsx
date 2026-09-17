@@ -18,7 +18,7 @@ export default function ReportsView({ events, inventory }) {
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }} onClick={()=> window.print()}>🖨 Print</button>
-          <button className="btn btn-primary" style={{ background:'var(--slate-900)', color:'white' }} onClick={()=> events && inventory && exportReportsExcel({ events, inventory })} title="Download professional spreadsheet (Excel .xls)">⬇ Export Excel</button>
+          <button className="btn btn-primary" style={{ background:'var(--slate-900)', color:'white' }} onClick={()=> events && inventory && exportReportsExcel({ events, inventory })} title="Download spreadsheet">⬇ Download</button>
         </div>
       </div>
       <div className="reports-grid">

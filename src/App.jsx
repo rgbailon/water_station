@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import useTheme from './hooks/useTheme'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
@@ -10,7 +10,9 @@ import ExpensesView from './components/ExpensesView'
 import ReportsView from './components/ReportsView'
 import DailyPrintSheet from './components/DailyPrintSheet'
 import { initialEvents, inventoryItems as initialInventory, hiramRecords } from './data/mockData'
+import { defaultSampleOrders, ORDER_STORE_SPEC } from './data/ordersData'
 import DashboardView from './components/DashboardView'
+import OrdersView from './components/OrdersView'
 import { addMonths, subMonths, formatMonthYear, formatISO, parseDate, getEventsForDate, peso } from './utils/dateUtils'
 import { exportCalendarExcel } from './utils/export'
 
@@ -26,6 +28,26 @@ export default function App() {
   const [filters, setFilters] = useState({ sale: true, delivery: true, expense: true, hiram: true, maintenance: true })
   const [toast, setToast] = useState(null)
   const [printDate, setPrintDate] = useState(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      const stored = localStorage.getItem('sidebarCollapsed')
+      if (stored !== null) return stored === 'true'
+    } catch {}
+    // default collapsed on small screens for wider workspace
+    try { return window.innerWidth <= 980 } catch { return false }
+  })
+  const [orders, setOrders] = useState(() => {
+    try {
+      const raw = localStorage.getItem(ORDER_STORE_SPEC.key)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        // revive: ensure product object present for old saves that only had productId
+        // We stored full expanded items; if product missing, attach from data would be done in view
+        if (Array.isArray(parsed) && parsed.length) return parsed
+      }
+    } catch {}
+    return defaultSampleOrders
+  })
 
   const showToast = (msg) => {
     setToast(msg)
@@ -75,12 +97,59 @@ export default function App() {
     showToast('Inventory updated • Saved locally')
   }
 
+  // save orders on this device
+  const handleOrdersUpdate = (updater) => {
+    setOrders(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(v => {
+      const next = !v
+      try { localStorage.setItem('sidebarCollapsed', String(next)) } catch {}
+      return next
+    })
+  }
+
+  // close mobile drawer on Escape or when navigating
+  const handleNavChange = (id) => {
+    setActiveTab(id)
+    if (window.innerWidth <= 980 && !sidebarCollapsed) {
+      setSidebarCollapsed(true)
+      try { localStorage.setItem('sidebarCollapsed', 'true') } catch {}
+    }
+  }
+
+  // Escape to close drawer on mobile + handle resize persistence
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape' && !sidebarCollapsed && window.innerWidth <= 980) {
+        setSidebarCollapsed(true)
+        try { localStorage.setItem('sidebarCollapsed', 'true') } catch {}
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sidebarCollapsed])
+
+  // lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (!sidebarCollapsed && window.innerWidth <= 980) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => { document.body.style.overflow = prev }
+    }
+  }, [sidebarCollapsed])
+
   return (
     <>
       <Header onExport={() => setModalDate(selectedDate)} onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} />
 
-      <div className="app-shell">
-        <Sidebar active={activeTab} onChange={setActiveTab} stats={stats} />
+      <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <Sidebar active={activeTab} onChange={handleNavChange} stats={stats} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
 
         <main className="main-card">
           {activeTab === 'dashboard' && (
@@ -103,7 +172,7 @@ export default function App() {
                   <button className="btn-today" onClick={()=>{const t=new Date(); setCurrentDate(t); setSelectedDate(t)}}>Today</button>
                 </div>
                 <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-                  <button className="btn-xs" style={{ padding:'8px 12px', fontSize:'13px' }} onClick={()=> exportCalendarExcel(events)} title="Download professional spreadsheet (Excel .xls)">⬇ Spreadsheet</button>
+                  <button className="btn-xs" style={{ padding:'8px 12px', fontSize:'13px' }} onClick={()=> exportCalendarExcel(events)} title="Download spreadsheet">⬇ Download</button>
                   <button className="btn-today" onClick={()=>setModalDate(selectedDate)} style={{ background:'var(--blue-600)', color:'white', borderColor:'var(--blue-600)', display:'inline-flex', alignItems:'center', gap:'6px' }}><span className="plus">+</span> Add on {selectedDate.getDate()}</button>
                   <div className="cal-filters">
                     {[
@@ -167,6 +236,7 @@ export default function App() {
             </>
           )}
 
+          {activeTab==='orders' && <OrdersView orders={orders} onUpdateOrders={handleOrdersUpdate} showToast={showToast} />}
           {activeTab==='inventory' && <InventoryView inventory={inventory} onUpdate={handleInventoryUpdate} />}
           {activeTab==='hiram' && <HiramView />}
           {activeTab==='expenses' && <ExpensesView />}
@@ -188,10 +258,29 @@ export default function App() {
         <DailyPrintSheet date={printDate} events={getEventsForDate(events, formatISO(printDate))} onClose={() => setPrintDate(null)} />
       )}
 
+      {/* Mobile drawer backdrop — visible only on small screens via CSS */}
+      <div
+        className={`sidebar-backdrop ${!sidebarCollapsed ? 'visible' : ''}`}
+        onClick={toggleSidebar}
+        aria-hidden="true"
+      />
+
+      {/* Floating button to reopen sidebar on mobile when hidden */}
+      {sidebarCollapsed && (
+        <button
+          className="sidebar-reopen-fab visible"
+          onClick={toggleSidebar}
+          aria-label="Show navigation"
+          title="Show navigation"
+        >
+          ☰
+        </button>
+      )}
+
       {toast && <div className="toast">✅ {toast}</div>}
 
       <footer style={{ textAlign:'center', padding:'18px 20px 28px', fontSize:'12.5px', color:'var(--slate-400)' }}>
-        Tubig Irosin • Irosin, Sorsogon • Built with React + Vite • Styles in <code style={{ background:'var(--white)', padding:'2px 6px', borderRadius:6, border:'1px solid var(--slate-200)', color:'var(--slate-700)' }}>src/styles/*.css</code> • Logic in <code style={{ background:'var(--white)', padding:'2px 6px', borderRadius:6, border:'1px solid var(--slate-200)', color:'var(--slate-700)' }}>src/components/*.jsx & src/utils/dateUtils.js</code> • DB: IndexedDB (to be implemented)
+        Tubig Irosin • Irosin, Sorsogon • All data is saved securely on this device • Works offline
       </footer>
     </>
   )
