@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { peso } from '../utils/dateUtils'
-import { exportOrdersExcel } from '../utils/export'
 import {
   sampleProducts,
   productById,
@@ -14,6 +13,7 @@ import {
   formatOrderDateShort,
 } from '../data/ordersData'
 import PickUpPrintSheet from './PickUpPrintSheet'
+import DeliveryPrintSheet from './DeliveryPrintSheet'
 
 const STATUS_META = {
   PENDING: { label: 'Pending', color: '#d97706', bg: '#fef3c7', border: '#fde68a' },
@@ -51,9 +51,9 @@ function Timeline({ order, now }) {
           <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{
               width: 28, height: 28, borderRadius: 999, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800,
-              background: active ? (isCurrent ? '#0f172a' : '#e0f2fe') : 'white',
-              color: active ? (isCurrent ? 'white' : '#0c4a6e') : '#94a3b8',
-              border: `1.5px solid ${active ? (isCurrent ? '#0f172a' : '#bae6fd') : '#e2e8f0'}`,
+              background: active ? (isCurrent ? 'var(--slate-900)' : 'var(--blue-50)') : 'var(--white)',
+              color: active ? (isCurrent ? 'var(--white)' : 'var(--blue-700)') : 'var(--slate-400)',
+              border: `1.5px solid ${active ? (isCurrent ? 'var(--slate-900)' : 'var(--blue-100)') : 'var(--slate-200)'}`,
             }}>{i + 1}</div>
             <span style={{ fontSize: 11, fontWeight: isCurrent ? 800 : 600, color: isCurrent ? '#0f172a' : active ? '#1a7bb8' : '#94a3b8' }}>{STATUS_META[s].label}</span>
             {i < steps.length - 1 && <span style={{ width: 18, height: 2, background: i < idx ? '#1a7bb8' : '#e2e8f0', borderRadius: 999 }}></span>}
@@ -64,11 +64,12 @@ function Timeline({ order, now }) {
   )
 }
 
-function OrderDetailModal({ order, now, onClose, onCancel, onPrintPickUp }) {
+function OrderDetailModal({ order, now, onClose, onCancel, onPrintPickUp, onPrintDelivery }) {
   if (!order) return null
   const status = getOrderStatus(order, now)
   const canCancel = canCancelOrder(order, now)
   const isPickUp = status.id === OrderStatus.CONFIRMED.id || status.id === OrderStatus.GALLON_TO_GET.id
+  const isDelivery = status.id === OrderStatus.OUT_FOR_DELIVERY.id
   const elapsed = now - order.date
   const remaining = Math.max(0, ORDER_CONSTANTS.CANCEL_WINDOW_MS - elapsed)
   const remainingSec = Math.ceil(remaining / 1000)
@@ -107,14 +108,14 @@ function OrderDetailModal({ order, now, onClose, onCancel, onPrintPickUp }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Subtotal</span><b>{peso(order.subtotal)}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Delivery fee</span><b>{peso(order.deliveryFee)} {order.deliveryFee === 0 && <span style={{ fontWeight: 600, color: '#059669' }}>Free</span>}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '8px 10px', background: '#0f172a', color: 'white', borderRadius: 8 }}><span>Total amount</span><b>{peso(order.total)}</b></div>
-                <div style={{ fontSize: 11, color: 'var(--slate-500)', lineHeight: 1.5, background: 'white', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
+                <div style={{ fontSize: 11, color: 'var(--slate-500)', lineHeight: 1.5, background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
                   Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above.
                 </div>
               </div>
             </div>
           </div>
 
-          <div style={{ background: 'white', border: '1px solid var(--slate-200)', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ padding: '10px 12px', background: 'var(--slate-50)', borderBottom: '1px solid var(--slate-200)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <b style={{ fontSize: 13, color: 'var(--slate-900)' }}>🛒 Ordered items ({order.items.length})</b>
               <span style={{ fontSize: 11, color: 'var(--slate-500)', fontWeight: 600 }}>{order.items.reduce((s, it) => s + it.quantity, 0)} items in total</span>
@@ -152,7 +153,7 @@ function OrderDetailModal({ order, now, onClose, onCancel, onPrintPickUp }) {
                         <td><span className="pill blue" style={{ padding: '2px 6px', fontSize: 11 }}>{p.bottleLabel || p.bottleSituation}</span></td>
                         <td>{p.container}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700 }}>{peso(p.price)}</td>
-                        <td style={{ textAlign: 'center' }}><b style={{ background: 'var(--slate-900)', color: 'white', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{it.quantity}</b></td>
+                        <td style={{ textAlign: 'center' }}><b style={{ background: 'var(--slate-900)', color: 'var(--white)', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{it.quantity}</b></td>
                         <td style={{ textAlign: 'right', fontWeight: 800 }}>{peso(p.price * it.quantity)}</td>
                       </tr>
                     )
@@ -167,11 +168,6 @@ function OrderDetailModal({ order, now, onClose, onCancel, onPrintPickUp }) {
         </div>
 
         <div className="modal-foot">
-          {isPickUp && (
-            <button className="btn-xs" style={{ marginRight: 8, padding: '8px 12px', background: '#fef3c7', borderColor: '#fde68a', color: '#92400e', fontWeight: 700 }} onClick={() => { onPrintPickUp && onPrintPickUp(order); }}>
-              🖨 Pick-Up Guide
-            </button>
-          )}
           {canCancel ? (
             <button className="btn-xs danger" style={{ marginRight: 'auto', padding: '8px 14px' }} onClick={() => { onCancel(order.orderId); onClose() }}>Cancel order</button>
           ) : (
@@ -209,15 +205,23 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
   const deliveryFee = subtotal >= ORDER_CONSTANTS.MIN_DELIVERY_FREE ? 0 : ORDER_CONSTANTS.DELIVERY_FEE_FLAT
   const total = subtotal + deliveryFee
 
-  const inc = (id) => setQtyMap(m => ({ ...m, [id]: Math.min(20, (m[id] || 0) + 1) }))
-  const dec = (id) => setQtyMap(m => {
-    const cur = m[id] || 0
-    if (cur <= 1) {
-      const { [id]: _, ...rest } = m
-      return rest
-    }
-    return { ...m, [id]: cur - 1 }
-  })
+  const inc = (id) => {
+    const prod = productById[id]
+    if (prod && prod.type !== 'PURIFIED') return
+    setQtyMap(m => ({ ...m, [id]: Math.min(20, (m[id] || 0) + 1) }))
+  }
+  const dec = (id) => {
+    const prod = productById[id]
+    if (prod && prod.type !== 'PURIFIED') return
+    setQtyMap(m => {
+      const cur = m[id] || 0
+      if (cur <= 1) {
+        const { [id]: _, ...rest } = m
+        return rest
+      }
+      return { ...m, [id]: cur - 1 }
+    })
+  }
 
   const handleCreate = () => {
     if (!isValid) return showToast && showToast('Please enter name, phone and address')
@@ -275,7 +279,7 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
                 <label>When to deliver</label>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {scheduleOptions.map(opt => (
-                    <button key={opt} onClick={() => setSchedule(opt)} className={`pill ${schedule === opt ? 'blue' : 'slate'}`} style={{ cursor: 'pointer', padding: '8px 12px', fontWeight: 700, borderWidth: 1.5 }}>{opt}</button>
+                    <button key={opt} onClick={() => setSchedule(opt)} className={`pill ${schedule === opt ? 'blue' : 'slate'}`} style={{ cursor: 'pointer', padding: '5px 10px', fontSize: 12, fontWeight: 700, borderWidth: 1 }}>{opt}</button>
                   ))}
                 </div>
               </div>
@@ -326,10 +330,11 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
                 const isSelected = qty > 0
                 const isPurified = p.type === 'PURIFIED'
                 return (
-                  <div key={p.id} style={{
-                    background: isSelected ? '#f0f8fe' : 'white',
-                    border: `1.5px solid ${isSelected ? '#93c5fd' : 'var(--slate-200)'}`,
+                  <div key={p.id} title={!isPurified ? 'Coming soon — not available for ordering' : undefined} style={{
+                    background: isSelected ? 'var(--blue-50)' : 'var(--slate-50)',
+                    border: `1.5px solid ${isSelected ? 'var(--blue-100)' : 'var(--slate-200)'}`,
                     borderRadius: 12, padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
+                    opacity: !isPurified ? 0.6 : 1,
                   }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <img src={p.image} alt={p.container} loading="lazy" style={{ width: 32, height: 32, objectFit: 'contain', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 6, padding: 2, flexShrink: 0 }} onError={e => { e.currentTarget.style.display = 'none' }} />
@@ -347,9 +352,9 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--slate-500)' }}>Quantity</span>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <button className="btn-xs" disabled={qty <= 0} onClick={() => dec(p.id)} style={{ width: 28, opacity: qty <= 0 ? 0.5 : 1 }}>−</button>
-                        <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 800, fontSize: 13, background: isSelected ? 'var(--slate-900)' : 'var(--slate-100)', color: isSelected ? 'white' : 'var(--slate-700)', padding: '4px 8px', borderRadius: 999 }}>{qty || 0}</span>
-                        <button className="btn-xs primary" onClick={() => inc(p.id)} disabled={qty >= 20} style={{ width: 28, background: 'var(--blue-600)', color: 'white', borderColor: 'var(--blue-600)', opacity: qty >= 20 ? 0.5 : 1 }}>+</button>
+                        <button className="btn-xs" disabled={!isPurified || qty <= 0} onClick={() => dec(p.id)} title={!isPurified ? 'Coming soon — not available' : undefined} style={{ width: 28, opacity: (!isPurified || qty <= 0) ? 0.5 : 1, cursor: !isPurified ? 'not-allowed' : 'pointer' }}>−</button>
+                        <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 800, fontSize: 13, background: isSelected ? 'var(--slate-900)' : 'var(--slate-100)', color: isSelected ? 'var(--white)' : 'var(--slate-700)', padding: '4px 8px', borderRadius: 999, opacity: !isPurified ? 0.5 : 1 }}>{qty || 0}</span>
+                        <button className="btn-xs primary" onClick={() => inc(p.id)} disabled={!isPurified || qty >= 20} title={!isPurified ? 'Coming soon — not available' : undefined} style={{ width: 28, background: 'var(--blue-600)', color: 'white', borderColor: 'var(--blue-600)', opacity: (!isPurified || qty >= 20) ? 0.5 : 1, cursor: !isPurified ? 'not-allowed' : 'pointer' }}>+</button>
                       </div>
                     </div>
                   </div>
@@ -393,6 +398,7 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
   const [selected, setSelected] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [pickUpPrint, setPickUpPrint] = useState(null) // null | { mode: 'all' } | { mode: 'single', order }
+  const [deliveryPrint, setDeliveryPrint] = useState(null)
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 5000)
@@ -454,6 +460,7 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
     const s = getOrderStatus(o, now).id
     return s === OrderStatus.CONFIRMED.id || s === OrderStatus.GALLON_TO_GET.id
   }), [orders, now])
+  const deliveryList = useMemo(() => orders.filter(o => getOrderStatus(o, now).id === OrderStatus.OUT_FOR_DELIVERY.id), [orders, now])
 
   return (
     <div>
@@ -465,14 +472,22 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button
             className="btn-xs"
-            style={{ padding: '9px 14px', fontSize: 13, background: pickUpList.length ? '#fef3c7' : 'white', borderColor: pickUpList.length ? '#fde68a' : 'var(--slate-200)', color: pickUpList.length ? '#92400e' : 'var(--slate-400)' }}
+            style={{ padding: '9px 14px', fontSize: 13, background: pickUpList.length ? '#fef3c7' : 'var(--white)', borderColor: pickUpList.length ? '#fde68a' : 'var(--slate-200)', color: pickUpList.length ? '#92400e' : 'var(--slate-400)' }}
             onClick={() => pickUpList.length && setPickUpPrint({ mode: 'all' })}
             disabled={pickUpList.length === 0}
             title={pickUpList.length ? `Print pick-up guide for ${pickUpList.length} confirmed order${pickUpList.length !== 1 ? 's' : ''} — hand to rider` : 'No confirmed orders needing pick-up right now'}
           >
-            🖨 Pick-Up Guide {pickUpList.length ? `(${pickUpList.length})` : ''}
+            🛻 Pick-Up {pickUpList.length ? `(${pickUpList.length})` : ''}
           </button>
-          <button className="btn-xs" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => exportOrdersExcel(filtered.length ? filtered : orders)} title="Download spreadsheet">⬇ Download</button>
+          <button
+            className="btn-xs"
+            style={{ padding: '9px 14px', fontSize: 13, background: deliveryList.length ? '#dcfce7' : 'var(--white)', borderColor: deliveryList.length ? '#a7f3d0' : 'var(--slate-200)', color: deliveryList.length ? '#065f46' : 'var(--slate-400)' }}
+            onClick={() => deliveryList.length && setDeliveryPrint({ mode: 'all' })}
+            disabled={deliveryList.length === 0}
+            title={deliveryList.length ? `Print delivery guide for ${deliveryList.length} order${deliveryList.length !== 1 ? 's' : ''} out for delivery` : 'No orders out for delivery right now'}
+          >
+            🚚 Delivery {deliveryList.length ? `(${deliveryList.length})` : ''}
+          </button>
           <button className="btn btn-primary" style={{ background: 'var(--blue-600)', color: 'white' }} onClick={() => setShowNew(true)}><span className="plus">+</span> New order</button>
         </div>
       </div>
@@ -506,19 +521,19 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by order number, customer, or product..."
-            style={{ width: '100%', padding: '9px 12px 9px 34px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 13, background: 'white' }}
+            style={{ width: '100%', padding: '9px 12px 9px 34px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 13, background: 'var(--white)', color: 'var(--slate-700)' }}
           />
           <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--slate-400)', fontSize: 14 }}>⌕</span>
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'white' }}>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
           <option value="ALL">All statuses</option>
           {Object.values(OrderStatus).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
-        <select value={scheduleFilter} onChange={e => setScheduleFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'white' }}>
+        <select value={scheduleFilter} onChange={e => setScheduleFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
           <option value="ALL">All schedules</option>
           {scheduleOptions.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'white' }}>
+        <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
           <option value="ALL">All payment methods</option>
           {paymentOptions.map(p => <option key={p.label} value={p.label}>{p.label}</option>)}
         </select>
@@ -539,8 +554,8 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
           const count = isAll ? orders.length : orders.filter(o => getOrderStatus(o, now).id === id).length
           return (
             <button key={id} onClick={() => setStatusFilter(id)} style={{
-              padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: `1px solid ${active ? '#0f172a' : 'var(--slate-200)'}`,
-              background: active ? '#0f172a' : 'white', color: active ? 'white' : 'var(--slate-700)', cursor: 'pointer'
+              padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: `1px solid ${active ? 'var(--slate-900)' : 'var(--slate-200)'}`,
+              background: active ? 'var(--slate-900)' : 'var(--white)', color: active ? 'var(--white)' : 'var(--slate-700)', cursor: 'pointer'
             }}>
               {label} <span style={{ opacity: 0.7, fontWeight: 600 }}>({count})</span>
             </button>
@@ -626,16 +641,6 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <button className="btn-xs" style={{ padding: '6px 10px' }} onClick={() => setSelected(order)}>View details</button>
-                      {(st.id === OrderStatus.CONFIRMED.id || st.id === OrderStatus.GALLON_TO_GET.id) && (
-                        <button
-                          className="btn-xs"
-                          style={{ padding: '6px 10px', background: '#fef3c7', borderColor: '#fde68a', color: '#92400e', fontWeight: 700 }}
-                          onClick={() => setPickUpPrint({ mode: 'single', order })}
-                          title="Print pick-up guide for rider — lists what to collect from this customer"
-                        >
-                          🖨 Pick-Up
-                        </button>
-                      )}
                       {canCancel ? (
                         <button className="btn-xs danger" style={{ padding: '6px 10px' }} onClick={() => handleCancel(order.orderId)}>Cancel</button>
                       ) : (
@@ -655,7 +660,7 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
       </div>
 
       <div style={{ margin: '0 18px 18px', display: 'grid', gap: 14, gridTemplateColumns: '1fr 1fr' }}>
-        <div style={{ background: 'white', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
+        <div style={{ background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
           <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--slate-900)' }}>How order status works</h3>
           <div style={{ display: 'grid', gap: 8, fontSize: 13, color: 'var(--slate-600)', lineHeight: 1.5 }}>
             <div>New orders automatically move through these steps:</div>
@@ -676,7 +681,7 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
           </div>
         </div>
 
-        <div style={{ background: 'white', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
+        <div style={{ background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
           <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--slate-900)' }}>Your data is safe</h3>
           <div style={{ fontSize: 13, color: 'var(--slate-600)', lineHeight: 1.6, display: 'grid', gap: 8 }}>
             <div>All orders are saved on this device automatically. They stay even if you close the app or turn off your phone.</div>
@@ -685,7 +690,7 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
               <span className="pill blue">Works offline</span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--slate-500)', background: '#f8fafc', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
-              Tap <b>Download</b> to save a copy of your orders as a spreadsheet you can print or share.
+              Use the pick-up guide to help your rider collect the right gallons on time.
             </div>
           </div>
         </div>
@@ -706,6 +711,10 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
             setSelected(null)
             setPickUpPrint({ mode: 'single', order })
           }}
+          onPrintDelivery={(order) => {
+            setSelected(null)
+            setDeliveryPrint({ mode: 'single', order })
+          }}
         />
       )}
       {showNew && (
@@ -717,6 +726,14 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
           now={now}
           singleOrder={pickUpPrint.mode === 'single' ? pickUpPrint.order : null}
           onClose={() => setPickUpPrint(null)}
+        />
+      )}
+      {deliveryPrint && (
+        <DeliveryPrintSheet
+          orders={deliveryList}
+          now={now}
+          singleOrder={deliveryPrint.mode === 'single' ? deliveryPrint.order : null}
+          onClose={() => setDeliveryPrint(null)}
         />
       )}
     </div>

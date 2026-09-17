@@ -48,8 +48,8 @@ export default function ProductsView() {
               onClick={() => setViewMode('grid')}
               style={{
                 padding: '7px 12px', fontSize: 12, fontWeight: 700, border: 'none',
-                background: viewMode === 'grid' ? 'var(--slate-900)' : 'white',
-                color: viewMode === 'grid' ? 'white' : 'var(--slate-600)', cursor: 'pointer'
+                background: viewMode === 'grid' ? 'var(--slate-900)' : 'var(--white)',
+                color: viewMode === 'grid' ? 'var(--white)' : 'var(--slate-600)', cursor: 'pointer'
               }}
             >
               Grid
@@ -58,8 +58,8 @@ export default function ProductsView() {
               onClick={() => setViewMode('table')}
               style={{
                 padding: '7px 12px', fontSize: 12, fontWeight: 700, border: 'none', borderLeft: '1px solid var(--slate-200)',
-                background: viewMode === 'table' ? 'var(--slate-900)' : 'white',
-                color: viewMode === 'table' ? 'white' : 'var(--slate-600)', cursor: 'pointer'
+                background: viewMode === 'table' ? 'var(--slate-900)' : 'var(--white)',
+                color: viewMode === 'table' ? 'var(--white)' : 'var(--slate-600)', cursor: 'pointer'
               }}
             >
               Table
@@ -99,23 +99,23 @@ export default function ProductsView() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by name, size, or description..."
-            style={{ width: '100%', padding: '9px 12px 9px 34px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 13, background: 'white' }}
+            style={{ width: '100%', padding: '9px 12px 9px 34px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 13, background: 'var(--white)', color: 'var(--slate-700)' }}
           />
           <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--slate-400)', fontSize: 14 }}>⌕</span>
         </div>
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'white' }}>
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
           <option value="ALL">All water types</option>
           <option value="PURIFIED">Purified</option>
           <option value="MINERAL">Mineral</option>
           <option value="ALKALINE">Alkaline</option>
         </select>
-        <select value={bottleFilter} onChange={e => setBottleFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'white' }}>
+        <select value={bottleFilter} onChange={e => setBottleFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
           <option value="ALL">All bottle types</option>
           <option value="WITH_GALLON">With Gallon</option>
           <option value="NEEDS_GALLON">New Gallon</option>
           <option value="BORROW">Borrow</option>
         </select>
-        <select value={containerFilter} onChange={e => setContainerFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'white' }}>
+        <select value={containerFilter} onChange={e => setContainerFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
           <option value="ALL">All containers</option>
           <option value="Round">Round</option>
           <option value="Slim">Slim</option>
@@ -127,7 +127,7 @@ export default function ProductsView() {
       </div>
 
       {filtered.length === 0 ? (
-        <div style={{ margin: '18px', padding: 24, textAlign: 'center', background: 'white', border: '1px dashed var(--slate-300)', borderRadius: 12, color: 'var(--slate-500)' }}>
+        <div style={{ margin: '18px', padding: 24, textAlign: 'center', background: 'var(--white)', border: '1px dashed var(--slate-300)', borderRadius: 12, color: 'var(--slate-500)' }}>
           No products match your filters. Try changing the search or filters.
         </div>
       ) : viewMode === 'grid' ? (
@@ -135,7 +135,7 @@ export default function ProductsView() {
           {filtered.map(p => {
             const isAvailable = p.type === 'PURIFIED'
             return (
-              <div key={p.id} style={{ background: 'white', border: '1px solid var(--slate-200)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 0, boxShadow: 'var(--shadow-sm)' }}>
+              <div key={p.id} style={{ background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 0, boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ width: '100%', height: 150, background: 'var(--slate-50)', display: 'grid', placeItems: 'center', padding: 8, borderBottom: '1px solid var(--slate-100)', position: 'relative', overflow: 'hidden' }}>
                   <img src={p.image} alt={`${p.name} ${p.container}`} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none' }} />
                   <span style={{ position: 'absolute', top: 8, left: 8, width: 10, height: 10, borderRadius: 999, background: p.accent, border: '1px solid white', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}></span>

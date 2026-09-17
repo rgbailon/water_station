@@ -1,4 +1,4 @@
-import { nowPHString, formatPHLong } from '../utils/dateUtils'
+import { peso, nowPHString, formatPHLong } from '../utils/dateUtils'
 import { getOrderStatus } from '../data/ordersData'
 
 function BlankRows({ count, cols }) {
@@ -12,31 +12,30 @@ function BlankRows({ count, cols }) {
   ))
 }
 
-export default function PickUpPrintSheet({ orders = [], now: nowProp, onClose, singleOrder = null }) {
+export default function DeliveryPrintSheet({ orders = [], now: nowProp, onClose, singleOrder = null }) {
   const now = nowProp ?? Date.now()
   const date = new Date(now)
   const dateStr = formatPHLong(date)
   const list = singleOrder ? [singleOrder] : orders
   const isSingle = Boolean(singleOrder)
 
-  // totals
   const totalGallons = list.reduce((s, o) => s + o.items.reduce((a, it) => a + it.quantity, 0), 0)
+  const totalAmount = list.reduce((s, o) => s + (o.total || 0), 0)
   const roundCount = list.reduce((s, o) => s + o.items.filter(it => (it.product || {}).container === 'Round').reduce((a, it) => a + it.quantity, 0), 0)
   const slimCount = list.reduce((s, o) => s + o.items.filter(it => (it.product || {}).container === 'Slim').reduce((a, it) => a + it.quantity, 0), 0)
-  const needNewGallon = list.reduce((s, o) => s + o.items.filter(it => (it.product || {}).bottleSituation === 'NEEDS_GALLON').reduce((a, it) => a + it.quantity, 0), 0)
-  const borrowCount = list.reduce((s, o) => s + o.items.filter(it => (it.product || {}).bottleSituation === 'BORROW').reduce((a, it) => a + it.quantity, 0), 0)
+  const gcashNote = list.filter(o => o.payment !== 'Cash on Delivery').length
 
   const content = (
-    <div className="print-sheet" id="print-pickup-sheet">
+    <div className="print-sheet" id="print-delivery-sheet">
       <div className="print-sheet-inner">
         <div className="print-header">
           <div className="print-brand">
-            <div className="print-logo">🛻</div>
+            <div className="print-logo">💧</div>
             <div>
-              <h1>GALLON PICK-UP GUIDE</h1>
+              <h1>GALLON DELIVERY GUIDE</h1>
               <p>Water Refilling Station • Irosin, Sorsogon • Delivery Rider Copy</p>
               <p style={{ fontSize: '7pt', marginTop: '4px', color: '#0c2d4a', letterSpacing: 0 }}>
-                {isSingle ? `Order ${singleOrder.orderId} — Confirmed` : `Ready for pick-up`}
+                {isSingle ? `Order ${singleOrder.orderId} — Out for Delivery` : `Ready for delivery`}
               </p>
             </div>
           </div>
@@ -58,24 +57,24 @@ export default function PickUpPrintSheet({ orders = [], now: nowProp, onClose, s
         {list.length === 0 ? (
           <div className="print-section">
             <div style={{ textAlign: 'center', padding: 24, background: '#fffbeb', border: '1px dashed #fde68a', borderRadius: 8, color: '#92400e', fontSize: '10pt' }}>
-              No confirmed orders needing pick-up right now.<br />
-              <span style={{ fontSize: '8pt' }}>Orders appear here when they are <b>Order Confirmed</b> or <b>Gallon Pick Up</b>. Check again in a few minutes.</span>
+              No orders ready for delivery right now.<br />
+              <span style={{ fontSize: '8pt' }}>Orders appear here when they are <b>Out for Delivery</b>. Check again after pick-ups are completed.</span>
             </div>
           </div>
         ) : (
           <>
             <div className="print-section">
-              <h2>📋 Pick-Up List <small>— visit each customer, collect empty gallons, verify count</small></h2>
+              <h2>🚚 Delivery List <small>— deliver sealed gallons, collect payment, get signature</small></h2>
               <table className="print-table">
                 <thead>
                   <tr>
                     <th style={{ width: '28px' }}>#</th>
                     <th style={{ width: '18%' }}>Order / Customer</th>
                     <th style={{ width: '22%' }}>Address & Phone</th>
-                    <th>Items to pick up</th>
+                    <th>Items to deliver</th>
+                    <th style={{ width: '11%' }}>Amount</th>
                     <th style={{ width: '10%' }}>Schedule</th>
-                    <th style={{ width: '14%' }}>Notes</th>
-                    <th style={{ width: '42px' }}>✓ Picked</th>
+                    <th style={{ width: '42px' }}>✓ Delivered</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -98,23 +97,26 @@ export default function PickUpPrintSheet({ orders = [], now: nowProp, onClose, s
                           <div style={{ fontWeight: 700, fontSize: '8pt' }}>{o.orderId}</div>
                           <div style={{ fontWeight: 600 }}>{o.customerName}</div>
                           <div style={{ fontSize: '7pt', color: '#64748b' }}>{o.phone || '—'}</div>
-                          <div style={{ fontSize: '6.5pt', marginTop: 2 }}><span style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 3, padding: '0 3px', fontWeight: 700 }}>{gallonInfo || o.items.length + ' items'}</span></div>
+                          <div style={{ fontSize: '6.5pt', marginTop: 2 }}><span style={{ background: '#dcfce7', border: '1px solid #a7f3d0', borderRadius: 3, padding: '0 3px', fontWeight: 700 }}>{gallonInfo || o.items.length + ' items'}</span></div>
                         </td>
                         <td style={{ fontSize: '7.5pt' }}>
                           <div style={{ fontWeight: 600 }}>{o.address}</div>
-                          <div style={{ color: '#64748b', marginTop: 2 }}>Barangay: {o.address.split(',')[0] || '—'}</div>
+                          <div style={{ color: '#64748b', marginTop: 2 }}>Phone: {o.phone || '—'}</div>
                         </td>
                         <td style={{ fontSize: '7.5pt' }}>
                           <div>{itemsText}</div>
-                          <div style={{ marginTop: 3, color: '#0c4a6e', fontWeight: 700 }}>{o.items.reduce((s, it) => s + it.quantity, 0)} gallon(s)</div>
+                          <div style={{ marginTop: 3, color: '#0c4a6e', fontWeight: 700 }}>{o.items.reduce((s, it) => s + it.quantity, 0)} gallon(s) • {peso(o.total)}</div>
                         </td>
-                        <td style={{ textAlign: 'center', fontWeight: 700, fontSize: '7.5pt' }}>{o.schedule}<div style={{ fontSize: '6.5pt', color: '#64748b', fontWeight: 400 }}>{getOrderStatus(o, now).label}</div></td>
-                        <td style={{ fontSize: '7pt' }}>{o.notes || '—'}</td>
+                        <td style={{ textAlign: 'center', fontSize: '7.5pt' }}>
+                          <div style={{ fontWeight: 800 }}>{peso(o.total)}</div>
+                          <div style={{ fontSize: '6.5pt', color: '#065f46', fontWeight: 600 }}>{o.payment}</div>
+                          <div style={{ fontSize: '6.5pt', color: '#64748b' }}>{o.schedule} • {getOrderStatus(o, now).label}</div>
+                        </td>
+                        <td style={{ fontSize: '7pt', textAlign: 'center' }}>{o.schedule}</td>
                         <td className="check">☐</td>
                       </tr>
                     )
                   })}
-                  {/* fill blank rows for handwritten additions */}
                   {list.length < 8 && <BlankRows count={Math.max(2, 8 - list.length)} cols={7} />}
                 </tbody>
               </table>
@@ -123,28 +125,28 @@ export default function PickUpPrintSheet({ orders = [], now: nowProp, onClose, s
             <div className="print-section">
               <div className="print-summary">
                 <div className="print-box">
-                  <h3>🔢 Summary for loader</h3>
+                  <h3>🔢 Summary for delivery</h3>
                   <div className="box-body">
-                    <div className="box-row"><span>Orders to visit</span><b>{list.length}</b></div>
-                    <div className="box-row"><span>Round gallons to pick up</span><b>{roundCount}</b></div>
-                    <div className="box-row"><span>Slim gallons to pick up</span><b>{slimCount}</b></div>
-                    <div className="box-row"><span>New gallons needed</span><b>{needNewGallon}</b></div>
-                    <div className="box-row"><span>Borrow requests</span><b>{borrowCount}</b></div>
-                    <div className="box-row" style={{ borderTop: '1px solid #cbd5e1', paddingTop: 6, marginTop: 2 }}><span><b>Total to collect</b></span><b>{totalGallons} gallon(s)</b></div>
-                    <div style={{ fontSize: '7pt', color: '#64748b', marginTop: 4 }}>Count again before leaving station. Bring enough empty jugs & caps.</div>
+                    <div className="box-row"><span>Orders to deliver</span><b>{list.length}</b></div>
+                    <div className="box-row"><span>Round gallons</span><b>{roundCount}</b></div>
+                    <div className="box-row"><span>Slim gallons</span><b>{slimCount}</b></div>
+                    <div className="box-row"><span>Total gallons</span><b>{totalGallons}</b></div>
+                    <div className="box-row"><span>Cash to collect</span><b>{peso(totalAmount)}</b></div>
+                    <div className="box-row"><span>Other payment</span><b>{gcashNote}</b></div>
+                    <div style={{ fontSize: '7pt', color: '#64748b', marginTop: 4 }}>Double-check seals are intact before loading. Bring change for cash payments.</div>
                   </div>
                 </div>
                 <div className="print-box">
-                  <h3>✅ Rider checklist</h3>
+                  <h3>✅ Delivery checklist</h3>
                   <div className="box-body" style={{ fontSize: '8pt' }}>
-                    <div>☐ Bring empty gallon checklist: Round <span style={{ borderBottom: '1px solid #0f172a', minWidth: 20, display: 'inline-block' }}>&nbsp;</span> Slim <span style={{ borderBottom: '1px solid #0f172a', minWidth: 20, display: 'inline-block' }}>&nbsp;</span></div>
-                    <div>☐ Check each empty gallon for cracks / dirt / bad odor</div>
-                    <div>☐ Confirm customer name & count before loading</div>
-                    <div>☐ Mark ✓ in “Picked” column only after collecting</div>
-                    <div>☐ For “New Gallon” orders — bring brand-new jug</div>
-                    <div>☐ For “Borrow” — note return date, get signature</div>
-                    <div style={{ marginTop: 6, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '6px 8px', color: '#92400e', fontSize: '7.5pt' }}>
-                      ⚠️ Tip: If customer is not home, leave a note and try again. Do not leave empty gallons unattended.
+                    <div>☐ Verify each gallon is sealed & clean</div>
+                    <div>☐ Load by delivery order — nearest first</div>
+                    <div>☐ Confirm customer name & address before unloading</div>
+                    <div>☐ Collect payment and give receipt</div>
+                    <div>☐ Get customer signature in “Delivered” column</div>
+                    <div>☐ For “Borrow” — remind return date</div>
+                    <div style={{ marginTop: 6, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '6px 8px', color: '#065f46', fontSize: '7.5pt' }}>
+                      💧 Tip: Call customer 10 mins before arrival. If not home, do not leave gallons unattended — bring back to station.
                     </div>
                   </div>
                 </div>
@@ -156,8 +158,8 @@ export default function PickUpPrintSheet({ orders = [], now: nowProp, onClose, s
               <table className="print-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '50%' }}>Issues / Damaged gallons / Customer not home</th>
-                    <th>Action taken</th>
+                    <th style={{ width: '50%' }}>Undelivered / Refused / Customer not home</th>
+                    <th>Action taken / Reschedule</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -168,10 +170,10 @@ export default function PickUpPrintSheet({ orders = [], now: nowProp, onClose, s
               </table>
               <div className="print-footer" style={{ marginTop: 10, paddingTop: 10 }}>
                 <div><div className="sig-line">Rider (Name & Signature)</div><div style={{ textAlign: 'center', fontSize: '7pt', color: '#94a3b8', marginTop: 4 }}>{dateStr} • Time out: _______ Time in: _______</div></div>
-                <div><div className="sig-line">Station Staff (Verified pick-ups)</div><div style={{ textAlign: 'center', fontSize: '7pt', color: '#94a3b8', marginTop: 4 }}>Gallons received at station: _______</div></div>
+                <div><div className="sig-line">Customer / Receiver</div><div style={{ textAlign: 'center', fontSize: '7pt', color: '#94a3b8', marginTop: 4 }}>Signature & Date: ___________________</div></div>
                 <div className="print-note" style={{ gridColumn: '1 / -1' }}>
-                  <b>Reminder:</b> Bring all collected empty gallons back to the station. Count together with staff. Any mismatch must be reported before unloading.
-                  <span style={{ float: 'right', fontSize: '6.5pt', color: '#94a3b8' }}>Tubig Irosin • Irosin, Sorsogon • Pick-Up Guide • {nowPHString()}</span>
+                  <b>Reminder:</b> Return all undelivered gallons and collected cash to the station. Report any issues before end of shift.
+                  <span style={{ float: 'right', fontSize: '6.5pt', color: '#94a3b8' }}>Tubig Irosin • Irosin, Sorsogon • Delivery Guide • {nowPHString()}</span>
                 </div>
               </div>
             </div>
@@ -185,10 +187,6 @@ export default function PickUpPrintSheet({ orders = [], now: nowProp, onClose, s
       </div>
     </div>
   )
-
-  if (orders.length === 0 && !singleOrder) {
-    // still allow printing empty template
-  }
 
   return (
     <div className="print-preview-overlay" onClick={onClose}>

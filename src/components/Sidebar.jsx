@@ -14,7 +14,7 @@ export default function Sidebar({ active, onChange, stats, collapsed, onToggleCo
   const isCollapsed = Boolean(collapsed)
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : 'mobile-open'}`} aria-label="Primary navigation">
-      {/* Collapse control — always visible */}
+      {/* Collapse control — hamburger */}
       <div className="sidebar-top">
         <button
           className="sidebar-collapse-btn"
@@ -22,10 +22,13 @@ export default function Sidebar({ active, onChange, stats, collapsed, onToggleCo
           aria-label={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
           title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar — wider workspace'}
         >
-          <span className="collapse-icon" aria-hidden="true">{isCollapsed ? '›' : '‹'}</span>
-          {!isCollapsed && <span className="collapse-label">Collapse</span>}
+          <span className="collapse-icon hamburger-icon" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+          {!isCollapsed && <span className="collapse-label">Menu</span>}
         </button>
-        {!isCollapsed && <span className="sidebar-top-hint">Hide for wider view</span>}
       </div>
 
       <nav className="sidebar-nav">

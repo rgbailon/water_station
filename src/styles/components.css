@@ -10,7 +10,7 @@
   z-index: 50;
 }
 .modal {
-  background: white;
+  background: var(--slate-50);
   border-radius: 16px;
   box-shadow: var(--shadow-lg);
   width: 100%;
@@ -30,7 +30,7 @@
   align-items: center;
   position: sticky;
   top: 0;
-  background: white;
+  background: var(--slate-50);
   border-radius: 16px 16px 0 0;
 }
 .modal-head h3 { margin: 0; font-size: 16px; font-weight: 800; color: var(--slate-900); }
@@ -94,7 +94,7 @@
   border-top: 1px solid var(--slate-200);
   position: sticky;
   bottom: 0;
-  background: white;
+  background: var(--slate-50);
   border-radius: 0 0 16px 16px;
 }
 .btn-cancel {
@@ -127,7 +127,7 @@
   padding: 18px;
 }
 .inv-card {
-  background: white;
+  background: var(--slate-50);
   border: 1px solid var(--slate-200);
   border-radius: 12px;
   padding: 14px;
@@ -144,8 +144,8 @@
   font-size: 22px;
   background: var(--slate-100);
   border: 1px solid var(--slate-200);
-  filter: grayscale(100%);
-  opacity: 0.95;
+  filter: none;
+  opacity: 1;
   transition: filter 0.2s ease, background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
 }
 .inv-card:hover .inv-icon,
@@ -154,7 +154,7 @@
 .inv-card p { margin: 2px 0 0; font-size: 12.5px; color: var(--slate-500); }
 .inv-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .inv-stat {
-  background: var(--slate-50);
+  background: var(--slate-100);
   border: 1px solid var(--slate-200);
   border-radius: 10px;
   padding: 10px;
@@ -203,7 +203,7 @@
   font-weight: 700;
   padding: 10px 12px;
   border-bottom: 1px solid var(--slate-200);
-  background: var(--slate-50);
+  background: var(--slate-100);
   white-space: nowrap;
 }
 .table th:first-child { border-radius: 10px 0 0 0; }
@@ -212,7 +212,7 @@
   padding: 12px;
   border-bottom: 1px solid var(--slate-200);
   vertical-align: middle;
-  background: white;
+  background: var(--slate-50);
 }
 .table tr:last-child td:first-child { border-radius: 0 0 0 10px; }
 .table tr:last-child td:last-child { border-radius: 0 0 10px 0; }
@@ -240,7 +240,7 @@
 }
 @media (max-width: 900px) { .reports-grid { grid-template-columns: 1fr; } }
 .chart-card, .list-card {
-  background: white;
+  background: var(--slate-50);
   border: 1px solid var(--slate-200);
   border-radius: 12px;
   padding: 16px;
@@ -301,28 +301,28 @@
 [data-theme="dark"] .modal { background: #1e293b; border-color: #334155; }
 [data-theme="dark"] .modal-head,
 [data-theme="dark"] .modal-foot { background: #1e293b; border-color: #334155; }
-[data-theme="dark"] .modal-head h3 { color: #f1f5f9; }
+[data-theme="dark"] .modal-head h3 { color: var(--slate-100); }
 [data-theme="dark"] .modal-head p { color: #94a3b8; }
 [data-theme="dark"] .btn-close { background: #0f172a; border-color: #334155; color: #cbd5e1; }
 [data-theme="dark"] .tab { background: #233044; border-color: #334155; color: #cbd5e1; }
-[data-theme="dark"] .tab.active { background: #f1f5f9; color: #0f172a; border-color: #f1f5f9; }
+[data-theme="dark"] .tab.active { background: var(--slate-100); color: #0f172a; border-color: var(--slate-100); }
 [data-theme="dark"] .field label { color: #cbd5e1; }
 [data-theme="dark"] .field input,
 [data-theme="dark"] .field select,
-[data-theme="dark"] .field textarea { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+[data-theme="dark"] .field textarea { background: #0f172a; border-color: #334155; color: var(--slate-100); }
 [data-theme="dark"] .field input::placeholder,
 [data-theme="dark"] .field textarea::placeholder { color: #64748b; }
 [data-theme="dark"] .field input:focus { box-shadow: 0 0 0 3px rgba(46,162,230,0.22); }
 [data-theme="dark"] .btn-cancel { background: #233044; border-color: #334155; color: #cbd5e1; }
 [data-theme="dark"] .inv-card { background: #1e293b; border-color: #334155; }
-[data-theme="dark"] .inv-card h3 { color: #f1f5f9; }
+[data-theme="dark"] .inv-card h3 { color: var(--slate-100); }
 [data-theme="dark"] .inv-card p { color: #94a3b8; }
-[data-theme="dark"] .inv-icon { background: #1e293b; border-color: #334155; filter: grayscale(100%); }
+[data-theme="dark"] .inv-icon { background: #1e293b; border-color: #334155; filter: none; }
 [data-theme="dark"] .inv-card:hover .inv-icon { filter: none; opacity: 1; background: #162e4a; border-color: #2a4a6b; }
 [data-theme="dark"] .dash-inv-row:hover .dash-icon { filter: none !important; background: #162e4a !important; border-color: #2a4a6b !important; }
 [data-theme="dark"] .dash-recent-row:hover .dash-recent-icon { filter: none !important; }
 [data-theme="dark"] .inv-stat { background: #0f172a; border-color: #334155; }
-[data-theme="dark"] .inv-stat b { color: #f1f5f9; }
+[data-theme="dark"] .inv-stat b { color: var(--slate-100); }
 [data-theme="dark"] .pill.green { background: #0f2e22; color: #6ee7b7; border-color: #1a4d3a; }
 [data-theme="dark"] .pill.amber { background: #3a2a0a; color: #fcd34d; border-color: #5a4a1a; }
 [data-theme="dark"] .pill.red { background: #3a1a1a; color: #fca5a5; border-color: #5a2a2a; }
@@ -331,9 +331,9 @@
 [data-theme="dark"] .chart-card,
 [data-theme="dark"] .list-card { background: #1e293b; border-color: #334155; }
 [data-theme="dark"] .chart-card h3,
-[data-theme="dark"] .list-card h3 { color: #f1f5f9; }
+[data-theme="dark"] .list-card h3 { color: var(--slate-100); }
 [data-theme="dark"] .bar-label { color: #cbd5e1; }
-[data-theme="dark"] .bar-value { color: #f1f5f9; }
+[data-theme="dark"] .bar-value { color: var(--slate-100); }
 [data-theme="dark"] .bar-track { background: #0f172a; border-color: #334155; }
 [data-theme="dark"] .btn-xs { background: #1e293b; border-color: #334155; color: #cbd5e1; }
 [data-theme="dark"] .btn-xs:hover { background: #233044; }
@@ -342,6 +342,6 @@
 [data-theme="dark"] .table th { background: #0f172a; color: #94a3b8; border-color: #334155; }
 [data-theme="dark"] .table td { background: #1e293b; border-color: #334155; color: #cbd5e1; }
 [data-theme="dark"] .table td strong,
-[data-theme="dark"] .table td b { color: #f1f5f9; }
-[data-theme="dark"] .empty h3 { color: #f1f5f9; }
-[data-theme="dark"] .toast { background: #f1f5f9; color: #0f172a; }
+[data-theme="dark"] .table td b { color: var(--slate-100); }
+[data-theme="dark"] .empty h3 { color: var(--slate-100); }
+[data-theme="dark"] .toast { background: var(--slate-100); color: #0f172a; }
