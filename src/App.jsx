@@ -13,6 +13,7 @@ import { initialEvents, inventoryItems as initialInventory, hiramRecords } from 
 import { defaultSampleOrders, ORDER_STORE_SPEC } from './data/ordersData'
 import DashboardView from './components/DashboardView'
 import OrdersView from './components/OrdersView'
+import ProductsView from './components/ProductsView'
 import { addMonths, subMonths, formatMonthYear, formatISO, parseDate, getEventsForDate, peso } from './utils/dateUtils'
 import { exportCalendarExcel } from './utils/export'
 
@@ -237,6 +238,7 @@ export default function App() {
           )}
 
           {activeTab==='orders' && <OrdersView orders={orders} onUpdateOrders={handleOrdersUpdate} showToast={showToast} />}
+          {activeTab==='products' && <ProductsView />}
           {activeTab==='inventory' && <InventoryView inventory={inventory} onUpdate={handleInventoryUpdate} />}
           {activeTab==='hiram' && <HiramView />}
           {activeTab==='expenses' && <ExpensesView />}

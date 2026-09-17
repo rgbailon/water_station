@@ -427,6 +427,33 @@ export function exportOrdersExcel(orders) {
   downloadBlob(html, `Tubig_Irosin_Orders_${new Date().toISOString().slice(0, 10)}.xls`)
 }
 
+export function exportProductsExcel(products) {
+  const headers = ['#', 'Product', 'Size', 'Container', 'Description', 'Price', 'Water Type', 'Bottle Type', 'Available']
+  const rows = products.map((p, i) => [
+    String(i + 1),
+    p.name,
+    p.size,
+    p.container,
+    p.description,
+    peso(p.price),
+    p.typeLabel || p.type,
+    p.bottleLabel || p.bottleSituation,
+    p.type === 'PURIFIED' ? 'Yes' : 'Coming soon',
+  ])
+  const summary = [
+    { label: 'Total Products', value: String(products.length) },
+    { label: 'Ready to Order', value: String(products.filter(p => p.type === 'PURIFIED').length) },
+    { label: 'Coming Soon', value: String(products.filter(p => p.type !== 'PURIFIED').length) },
+  ]
+  const html = buildWorkbookSheet({
+    title: 'TUBIG IROSIN — WATER PRODUCTS',
+    subtitle: `${products.length} products • Purified ready to order • Mineral and Alkaline coming soon`,
+    headers, rows, summary,
+    footer: 'Prices depend on bottle type: With Gallon, New Gallon, or Borrow.',
+  })
+  downloadBlob(html, `Tubig_Irosin_Products_${new Date().toISOString().slice(0, 10)}.xls`)
+}
+
 export function exportAllBackup({ events, inventory }) {
   // JSON backup + also Excel combined? For now JSON
   const payload = { generated: nowPHString(), events, inventory }

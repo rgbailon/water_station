@@ -31,6 +31,11 @@ export const accentColors = {
   WaterTeal: { hex: '#00897B', argb: 0xFF00897B, signed: -16741061 },
 }
 
+export const productImages = {
+  Round: 'https://i.ibb.co/rR9LDHXb/round.jpg',
+  Slim: 'https://i.ibb.co/r2KL42XR/514194012-24405278279058403-8323724181837978356-n.jpg',
+}
+
 // Shop settings
 export const ORDER_CONSTANTS = {
   MIN_DELIVERY_FREE: 100.0,
@@ -326,6 +331,11 @@ export const sampleProducts = [
     accentArgb: accentColors.WaterBlueLight.argb,
   },
 ]
+
+// Attach image for each product based on container (Round vs Slim)
+sampleProducts.forEach(p => {
+  p.image = productImages[p.container]
+})
 
 // Helper map for fast lookup
 export const productById = Object.fromEntries(sampleProducts.map(p => [p.id, p]))

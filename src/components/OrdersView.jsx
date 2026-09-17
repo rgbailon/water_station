@@ -13,6 +13,7 @@ import {
   formatOrderDate,
   formatOrderDateShort,
 } from '../data/ordersData'
+import PickUpPrintSheet from './PickUpPrintSheet'
 
 const STATUS_META = {
   PENDING: { label: 'Pending', color: '#d97706', bg: '#fef3c7', border: '#fde68a' },
@@ -63,10 +64,11 @@ function Timeline({ order, now }) {
   )
 }
 
-function OrderDetailModal({ order, now, onClose, onCancel }) {
+function OrderDetailModal({ order, now, onClose, onCancel, onPrintPickUp }) {
   if (!order) return null
   const status = getOrderStatus(order, now)
   const canCancel = canCancelOrder(order, now)
+  const isPickUp = status.id === OrderStatus.CONFIRMED.id || status.id === OrderStatus.GALLON_TO_GET.id
   const elapsed = now - order.date
   const remaining = Math.max(0, ORDER_CONSTANTS.CANCEL_WINDOW_MS - elapsed)
   const remainingSec = Math.ceil(remaining / 1000)
@@ -138,8 +140,13 @@ function OrderDetailModal({ order, now, onClose, onCancel }) {
                       <tr key={idx}>
                         <td style={{ color: 'var(--slate-500)', fontWeight: 600 }}>{idx + 1}</td>
                         <td>
-                          <div style={{ fontWeight: 700, color: 'var(--slate-900)' }}>{p.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>{p.size} • {p.description.slice(0, 44)}...</div>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <img src={p.image} alt={p.container} loading="lazy" style={{ width: 32, height: 32, objectFit: 'contain', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 6, padding: 2, flexShrink: 0 }} onError={e => { e.currentTarget.style.display = 'none' }} />
+                            <div>
+                              <div style={{ fontWeight: 700, color: 'var(--slate-900)' }}>{p.name}</div>
+                              <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>{p.size} • {p.description.slice(0, 44)}...</div>
+                            </div>
+                          </div>
                         </td>
                         <td><span className="pill slate" style={{ padding: '2px 6px', fontSize: 11 }}>{p.typeLabel || p.type}</span></td>
                         <td><span className="pill blue" style={{ padding: '2px 6px', fontSize: 11 }}>{p.bottleLabel || p.bottleSituation}</span></td>
@@ -160,6 +167,11 @@ function OrderDetailModal({ order, now, onClose, onCancel }) {
         </div>
 
         <div className="modal-foot">
+          {isPickUp && (
+            <button className="btn-xs" style={{ marginRight: 8, padding: '8px 12px', background: '#fef3c7', borderColor: '#fde68a', color: '#92400e', fontWeight: 700 }} onClick={() => { onPrintPickUp && onPrintPickUp(order); }}>
+              🖨 Pick-Up Guide
+            </button>
+          )}
           {canCancel ? (
             <button className="btn-xs danger" style={{ marginRight: 'auto', padding: '8px 14px' }} onClick={() => { onCancel(order.orderId); onClose() }}>Cancel order</button>
           ) : (
@@ -320,8 +332,8 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
                     borderRadius: 12, padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
                   }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <div style={{ width: 10, height: 10, borderRadius: 999, background: p.accent, border: '1px solid #e2e8f0' }}></div>
-                      <div style={{ flex: 1 }}>
+                      <img src={p.image} alt={p.container} loading="lazy" style={{ width: 32, height: 32, objectFit: 'contain', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 6, padding: 2, flexShrink: 0 }} onError={e => { e.currentTarget.style.display = 'none' }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--slate-900)', lineHeight: 1.1 }}>{p.name}</div>
                         <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>{p.size} • {p.container} • {p.bottleLabel}</div>
                       </div>
@@ -380,7 +392,7 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
   const [paymentFilter, setPaymentFilter] = useState('ALL')
   const [selected, setSelected] = useState(null)
   const [showNew, setShowNew] = useState(false)
-  const [showCatalog, setShowCatalog] = useState(false)
+  const [pickUpPrint, setPickUpPrint] = useState(null) // null | { mode: 'all' } | { mode: 'single', order }
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 5000)
@@ -438,6 +450,11 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
     showToast && showToast(`Order ${id} placed — total ${peso(order.total)}`)
   }
 
+  const pickUpList = useMemo(() => orders.filter(o => {
+    const s = getOrderStatus(o, now).id
+    return s === OrderStatus.CONFIRMED.id || s === OrderStatus.GALLON_TO_GET.id
+  }), [orders, now])
+
   return (
     <div>
       <div className="section-head" style={{ borderTop: 'none' }}>
@@ -445,9 +462,17 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
           <h2>🧾 Orders</h2>
           <p>View and manage customer orders — status updates automatically as orders are prepared and delivered</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            className="btn-xs"
+            style={{ padding: '9px 14px', fontSize: 13, background: pickUpList.length ? '#fef3c7' : 'white', borderColor: pickUpList.length ? '#fde68a' : 'var(--slate-200)', color: pickUpList.length ? '#92400e' : 'var(--slate-400)' }}
+            onClick={() => pickUpList.length && setPickUpPrint({ mode: 'all' })}
+            disabled={pickUpList.length === 0}
+            title={pickUpList.length ? `Print pick-up guide for ${pickUpList.length} confirmed order${pickUpList.length !== 1 ? 's' : ''} — hand to rider` : 'No confirmed orders needing pick-up right now'}
+          >
+            🖨 Pick-Up Guide {pickUpList.length ? `(${pickUpList.length})` : ''}
+          </button>
           <button className="btn-xs" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => exportOrdersExcel(filtered.length ? filtered : orders)} title="Download spreadsheet">⬇ Download</button>
-          <button className="btn-xs" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => setShowCatalog(v => !v)}>{showCatalog ? 'Hide products' : 'View products'}</button>
           <button className="btn btn-primary" style={{ background: 'var(--blue-600)', color: 'white' }} onClick={() => setShowNew(true)}><span className="plus">+</span> New order</button>
         </div>
       </div>
@@ -575,7 +600,7 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
                       {order.items.map((it, i) => {
                         const p = it.product || productById[it.productId]
                         return <div key={i} style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 999, background: p.accent }}></span>
+                          <img src={p.image} alt={p.container} loading="lazy" style={{ width: 20, height: 20, objectFit: 'contain', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 4, padding: 1, flexShrink: 0 }} onError={e => { e.currentTarget.style.display = 'none' }} />
                           <span style={{ fontWeight: 600, color: 'var(--slate-900)' }}>{p.name} ({p.container})</span>
                           <span style={{ color: 'var(--slate-500)' }}>×{it.quantity}</span>
                           <span style={{ marginLeft: 'auto', fontWeight: 700 }}>{peso(p.price * it.quantity)}</span>
@@ -601,12 +626,24 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <button className="btn-xs" style={{ padding: '6px 10px' }} onClick={() => setSelected(order)}>View details</button>
+                      {(st.id === OrderStatus.CONFIRMED.id || st.id === OrderStatus.GALLON_TO_GET.id) && (
+                        <button
+                          className="btn-xs"
+                          style={{ padding: '6px 10px', background: '#fef3c7', borderColor: '#fde68a', color: '#92400e', fontWeight: 700 }}
+                          onClick={() => setPickUpPrint({ mode: 'single', order })}
+                          title="Print pick-up guide for rider — lists what to collect from this customer"
+                        >
+                          🖨 Pick-Up
+                        </button>
+                      )}
                       {canCancel ? (
                         <button className="btn-xs danger" style={{ padding: '6px 10px' }} onClick={() => handleCancel(order.orderId)}>Cancel</button>
                       ) : (
-                        <span style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600 }}>
-                          {order.isCanceled ? 'Canceled' : st.id === 'DELIVERED' ? 'Completed' : ''}
-                        </span>
+                        (st.id === OrderStatus.CONFIRMED.id || st.id === OrderStatus.GALLON_TO_GET.id) ? null : (
+                          <span style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600 }}>
+                            {order.isCanceled ? 'Canceled' : st.id === 'DELIVERED' ? 'Completed' : ''}
+                          </span>
+                        )
                       )}
                     </div>
                   </td>
@@ -616,52 +653,6 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
           </tbody>
         </table>
       </div>
-
-      {showCatalog && (
-        <div style={{ margin: '0 18px 18px', background: 'white', border: '1px solid var(--slate-200)', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 14px', background: 'var(--slate-50)', borderBottom: '1px solid var(--slate-200)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <b style={{ fontSize: 13, color: 'var(--slate-900)' }}>📦 Available products</b>
-            <span style={{ fontSize: 12, color: 'var(--slate-500)' }}>18 water refill options</span>
-          </div>
-          <div className="table-wrap" style={{ padding: 0 }}>
-            <table className="table" style={{ minWidth: 760, margin: 0 }}>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Product</th>
-                  <th>Size</th>
-                  <th>Container</th>
-                  <th style={{ minWidth: 200 }}>Description</th>
-                  <th style={{ textAlign: 'right' }}>Price</th>
-                  <th>Water type</th>
-                  <th>Bottle type</th>
-                  <th>Available</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sampleProducts.map(p => (
-                  <tr key={p.id}>
-                    <td style={{ fontWeight: 700 }}>{p.id}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--slate-900)' }}>{p.name}</td>
-                    <td>{p.size}</td>
-                    <td><span className="pill slate" style={{ fontSize: 11 }}>{p.container}</span></td>
-                    <td style={{ fontSize: 12, color: 'var(--slate-600)', lineHeight: 1.4 }}>{p.description}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 800 }}>{peso(p.price)}</td>
-                    <td><span className="pill blue" style={{ fontSize: 11 }}>{p.typeLabel}</span></td>
-                    <td><span className="pill slate" style={{ fontSize: 11 }}>{p.bottleLabel}</span></td>
-                    <td>
-                      {p.type === 'PURIFIED' ? <span className="pill green" style={{ fontSize: 11 }}>Ready to order</span> : <span className="pill amber" style={{ fontSize: 11 }}>Coming soon</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid var(--slate-200)', fontSize: 12, color: 'var(--slate-600)', lineHeight: 1.5 }}>
-            Purified water is ready to order now — Mineral and Alkaline options will be available soon.
-          </div>
-        </div>
-      )}
 
       <div style={{ margin: '0 18px 18px', display: 'grid', gap: 14, gridTemplateColumns: '1fr 1fr' }}>
         <div style={{ background: 'white', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
@@ -706,10 +697,27 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
       </div>
 
       {selected && (
-        <OrderDetailModal order={selected} now={now} onClose={() => setSelected(null)} onCancel={handleCancel} />
+        <OrderDetailModal
+          order={selected}
+          now={now}
+          onClose={() => setSelected(null)}
+          onCancel={handleCancel}
+          onPrintPickUp={(order) => {
+            setSelected(null)
+            setPickUpPrint({ mode: 'single', order })
+          }}
+        />
       )}
       {showNew && (
         <NewOrderModal onClose={() => setShowNew(false)} onCreate={handleCreate} showToast={showToast} />
+      )}
+      {pickUpPrint && (
+        <PickUpPrintSheet
+          orders={pickUpList}
+          now={now}
+          singleOrder={pickUpPrint.mode === 'single' ? pickUpPrint.order : null}
+          onClose={() => setPickUpPrint(null)}
+        />
       )}
     </div>
   )

@@ -1,7 +1,8 @@
 const nav = [
   { id: 'dashboard', label: 'Dashboard', sub: 'Overview & Charts', icon: '📊' },
   { id: 'calendar', label: 'Calendar', sub: 'Sales & Schedule', icon: '📅' },
-  { id: 'orders', label: 'Orders', sub: 'Water Refilling • 18 SKUs', icon: '🧾' },
+  { id: 'orders', label: 'Orders', sub: 'Customer Orders', icon: '🧾' },
+  { id: 'products', label: 'Products', sub: 'Water Catalog • 18 items', icon: '🧴' },
   { id: 'inventory', label: 'Inventory', sub: 'Stock & Supplies', icon: '📦' },
   { id: 'hiram', label: 'Hiram Tracker', sub: 'Borrowed Gallons', icon: '🤝' },
   { id: 'expenses', label: 'Expenses', sub: 'Costs & Bills', icon: '💸' },
