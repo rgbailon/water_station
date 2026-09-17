@@ -509,11 +509,6 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           <div className="stat-value">{peso(stats.revenue)}</div>
           <div className="stat-trend" style={{ color: '#92400e' }}>Average {peso(Math.round(stats.avg))}</div>
         </div>
-        <div className="stat-card slate">
-          <div className="stat-top"><span className="stat-label">Status</span><span className="stat-icon">🗄️</span></div>
-          <div className="stat-value" style={{ fontSize: 14 }}>Database-driven</div>
-          <div className="stat-trend" style={{ color: 'var(--slate-600)' }}>No timers — update in DB</div>
-        </div>
       </div>
 
       <div style={{ margin: '0 18px', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
