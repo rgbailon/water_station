@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { peso } from '../utils/dateUtils'
 import {
-  sampleProducts,
   productById,
   OrderStatus,
   ORDER_CONSTANTS,
@@ -29,15 +28,15 @@ function StatusPill({ statusId }) {
   return <span className="pill" style={{ background: m.bg, color: m.color, borderColor: m.border }}>{m.label}</span>
 }
 
-function Timeline({ order, now }) {
-  const current = getOrderStatus(order, now).id
+function Timeline({ order }) {
+  const current = getOrderStatus(order).id
   const steps = ['PENDING', 'CONFIRMED', 'GALLON_TO_GET', 'OUT_FOR_DELIVERY', 'DELIVERED']
   if (current === 'CANCELED') {
     return (
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10 }}>
         <span style={{ width: 10, height: 10, borderRadius: 999, background: '#dc2626', display: 'inline-block' }}></span>
         <b style={{ color: '#991b1b', fontSize: 13 }}>Canceled</b>
-        <span style={{ color: '#7f1d1d', fontSize: 12 }}>• This order was canceled by the customer</span>
+        <span style={{ color: '#7f1d1d', fontSize: 12 }}>• This order was canceled — status stored in database</span>
       </div>
     )
   }
@@ -64,30 +63,32 @@ function Timeline({ order, now }) {
   )
 }
 
-function OrderDetailModal({ order, now, onClose, onCancel, onPrintPickUp, onPrintDelivery }) {
+function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus }) {
   if (!order) return null
-  const status = getOrderStatus(order, now)
-  const canCancel = canCancelOrder(order, now)
-  const isPickUp = status.id === OrderStatus.CONFIRMED.id || status.id === OrderStatus.GALLON_TO_GET.id
-  const isDelivery = status.id === OrderStatus.OUT_FOR_DELIVERY.id
-  const elapsed = now - order.date
-  const remaining = Math.max(0, ORDER_CONSTANTS.CANCEL_WINDOW_MS - elapsed)
-  const remainingSec = Math.ceil(remaining / 1000)
-  const mins = Math.floor(remainingSec / 60)
-  const secs = remainingSec % 60
+  const status = getOrderStatus(order)
+  const canCancel = canCancelOrder(order)
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 760, maxHeight: '92vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
         <div className="modal-head" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
           <div>
             <h3 style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{order.orderId} <StatusPill statusId={status.id} /></h3>
-            <p>{formatOrderDate(order.date)} • {order.schedule} • {order.payment} {canCancel && <span style={{ color: '#d97706', fontWeight: 700 }}>• You can still cancel: {mins}:{String(secs).padStart(2, '0')} left</span>}</p>
+            <p>{formatOrderDate(order.date)} • {order.schedule} • {order.payment} • <span className="pill slate" style={{ fontSize: 11 }}>DB status: {status.label}</span></p>
           </div>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
 
         <div style={{ padding: '16px 20px', display: 'grid', gap: 14 }}>
-          <Timeline order={order} now={now} />
+          <Timeline order={order} />
+          {onUpdateStatus && status.id !== 'CANCELED' && status.id !== 'DELIVERED' && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 10, padding: '10px 12px' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--slate-700)' }}>Update status:</span>
+              <select value={status.id} onChange={e => onUpdateStatus(order.orderId, e.target.value)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700 }}>
+                {Object.values(OrderStatus).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+              <span style={{ fontSize: 11, color: 'var(--slate-500)' }}>Changes are saved to Supabase immediately.</span>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--slate-500)', marginBottom: 8 }}>Customer details</div>
@@ -109,7 +110,7 @@ function OrderDetailModal({ order, now, onClose, onCancel, onPrintPickUp, onPrin
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Delivery fee</span><b>{peso(order.deliveryFee)} {order.deliveryFee === 0 && <span style={{ fontWeight: 600, color: '#059669' }}>Free</span>}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '8px 10px', background: '#0f172a', color: 'white', borderRadius: 8 }}><span>Total amount</span><b>{peso(order.total)}</b></div>
                 <div style={{ fontSize: 11, color: 'var(--slate-500)', lineHeight: 1.5, background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
-                  Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above.
+                  Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above. Status is database-driven — no timers.
                 </div>
               </div>
             </div>
@@ -171,7 +172,7 @@ function OrderDetailModal({ order, now, onClose, onCancel, onPrintPickUp, onPrin
           {canCancel ? (
             <button className="btn-xs danger" style={{ marginRight: 'auto', padding: '8px 14px' }} onClick={() => { onCancel(order.orderId); onClose() }}>Cancel order</button>
           ) : (
-            <span style={{ marginRight: 'auto', fontSize: 12, color: 'var(--slate-500)' }}>{order.isCanceled ? 'This order is already canceled' : status.id === 'DELIVERED' ? 'Delivered — can no longer be canceled' : 'Can only be canceled within 5 minutes while order is still being prepared'}</span>
+            <span style={{ marginRight: 'auto', fontSize: 12, color: 'var(--slate-500)' }}>{order.isCanceled ? 'This order is already canceled' : status.id === 'DELIVERED' ? 'Delivered — can no longer be canceled' : 'Cancel available while Pending / Confirmed / Pick Up'}</span>
           )}
           <button className="btn-cancel" onClick={onClose}>Close</button>
         </div>
@@ -195,11 +196,11 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
   const selectedIds = Object.keys(qtyMap).map(Number).filter(id => qtyMap[id] > 0)
   const hasSelection = selectedIds.length > 0
 
-  const filteredProducts = sampleProducts.filter(p => {
+  const filteredProducts = productById ? Object.values(productById).filter(p => {
     if (typeFilter !== 'ALL' && p.type !== typeFilter) return false
     if (bottleFilter !== 'ALL' && p.bottleSituation !== bottleFilter) return false
     return true
-  })
+  }) : []
 
   const subtotal = selectedIds.reduce((s, id) => s + productById[id].price * qtyMap[id], 0)
   const deliveryFee = subtotal >= ORDER_CONSTANTS.MIN_DELIVERY_FREE ? 0 : ORDER_CONSTANTS.DELIVERY_FEE_FLAT
@@ -231,6 +232,7 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
     const order = {
       orderId,
       date: Date.now(),
+      status: 'PENDING',
       customerName: name.trim(),
       phone: phone.trim(),
       address: address.trim(),
@@ -252,7 +254,7 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
         <div className="modal-head">
           <div>
             <h3>New order</h3>
-            <p>Choose products and enter customer details</p>
+            <p>Choose products and enter customer details — status will be PENDING in database</p>
           </div>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
@@ -389,85 +391,86 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
   )
 }
 
-export default function OrdersView({ orders, onUpdateOrders, showToast }) {
-  const [now, setNow] = useState(() => Date.now())
+export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCreateOrder, onUpdateStatus, showToast, dbStatus }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [scheduleFilter, setScheduleFilter] = useState('ALL')
   const [paymentFilter, setPaymentFilter] = useState('ALL')
   const [selected, setSelected] = useState(null)
   const [showNew, setShowNew] = useState(false)
-  const [pickUpPrint, setPickUpPrint] = useState(null) // null | { mode: 'all' } | { mode: 'single', order }
+  const [pickUpPrint, setPickUpPrint] = useState(null)
   const [deliveryPrint, setDeliveryPrint] = useState(null)
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5000)
-    return () => clearInterval(id)
-  }, [])
 
   const stats = useMemo(() => {
     const total = orders.length
-    const canceled = orders.filter(o => o.isCanceled).length
+    const canceled = orders.filter(o => getOrderStatus(o).id === 'CANCELED').length
     const byStatus = {}
     orders.forEach(o => {
-      const s = getOrderStatus(o, now).id
+      const s = getOrderStatus(o).id
       byStatus[s] = (byStatus[s] || 0) + 1
     })
     const active = (byStatus.PENDING || 0) + (byStatus.CONFIRMED || 0) + (byStatus.GALLON_TO_GET || 0) + (byStatus.OUT_FOR_DELIVERY || 0)
     const delivered = byStatus.DELIVERED || 0
-    const revenue = orders.filter(o => !o.isCanceled).reduce((s, o) => s + o.total, 0)
+    const revenue = orders.filter(o => getOrderStatus(o).id !== 'CANCELED').reduce((s, o) => s + o.total, 0)
     const avg = total - canceled > 0 ? revenue / (total - canceled) : 0
-    const todayRevenue = orders.filter(o => {
-      const d = new Date(o.date)
-      const t = new Date(now)
-      return d.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }) === t.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }) && !o.isCanceled
-    }).reduce((s, o) => s + o.total, 0)
-    return { total, canceled, active, delivered, revenue, avg, todayRevenue }
-  }, [orders, now])
+    return { total, canceled, active, delivered, revenue, avg, byStatus }
+  }, [orders])
 
   const filtered = useMemo(() => {
     return orders.filter(o => {
-      const st = getOrderStatus(o, now).id
+      const st = getOrderStatus(o).id
       if (statusFilter !== 'ALL' && st !== statusFilter) return false
       if (scheduleFilter !== 'ALL' && o.schedule !== scheduleFilter) return false
       if (paymentFilter !== 'ALL' && o.payment !== paymentFilter) return false
       if (search.trim()) {
         const q = search.toLowerCase()
-        const hay = `${o.orderId} ${o.customerName} ${o.phone || ''} ${o.address || ''} ${o.notes || ''} ${o.items.map(it => (it.product || productById[it.productId])?.name || '').join(' ')}`.toLowerCase()
+        const hay = `${o.orderId} ${o.customerName} ${o.phone || ''} ${o.address || ''} ${o.notes || ''} ${o.status || ''} ${o.items.map(it => (it.product || productById[it.productId])?.name || '').join(' ')}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
     }).sort((a, b) => b.date - a.date)
-  }, [orders, now, statusFilter, scheduleFilter, paymentFilter, search])
+  }, [orders, statusFilter, scheduleFilter, paymentFilter, search])
 
   const handleCancel = (orderId) => {
-    onUpdateOrders(prev => prev.map(o => o.orderId === orderId ? { ...o, isCanceled: true } : o))
+    if (onCancelOrder) return onCancelOrder(orderId)
+    onUpdateOrders(prev => prev.map(o => o.orderId === orderId ? { ...o, status: 'CANCELED', isCanceled: true } : o))
     showToast && showToast('Order canceled')
   }
 
+  const handleStatusChange = (orderId, newStatus) => {
+    if (onUpdateStatus) return onUpdateStatus(orderId, newStatus)
+    onUpdateOrders(prev => prev.map(o => o.orderId === orderId ? { ...o, status: newStatus, isCanceled: newStatus === 'CANCELED' } : o))
+    showToast && showToast(`Order ${orderId} → ${newStatus}`)
+  }
+
   const handleCreate = (newOrder) => {
+    if (onCreateOrder) {
+      onCreateOrder(newOrder)
+      setShowNew(false)
+      return
+    }
     let id = newOrder.orderId
     while (orders.some(o => o.orderId === id)) {
       id = `WFR-${Math.floor(1000 + Math.random() * 9000)}`
     }
-    const order = { ...newOrder, orderId: id }
+    const order = { ...newOrder, orderId: id, status: newOrder.status || 'PENDING' }
     onUpdateOrders(prev => [order, ...prev])
     setShowNew(false)
     showToast && showToast(`Order ${id} placed — total ${peso(order.total)}`)
   }
 
   const pickUpList = useMemo(() => orders.filter(o => {
-    const s = getOrderStatus(o, now).id
+    const s = getOrderStatus(o).id
     return s === OrderStatus.CONFIRMED.id || s === OrderStatus.GALLON_TO_GET.id
-  }), [orders, now])
-  const deliveryList = useMemo(() => orders.filter(o => getOrderStatus(o, now).id === OrderStatus.OUT_FOR_DELIVERY.id), [orders, now])
+  }), [orders])
+  const deliveryList = useMemo(() => orders.filter(o => getOrderStatus(o).id === OrderStatus.OUT_FOR_DELIVERY.id), [orders])
 
   return (
     <div>
       <div className="section-head" style={{ borderTop: 'none' }}>
         <div>
           <h2>🧾 Orders</h2>
-          <p>View and manage customer orders — status updates automatically as orders are prepared and delivered</p>
+          <p>Database-driven status — update manually, no timers {dbStatus?.mode==='online' ? <span className="pill green" style={{ fontSize: 11 }}>Supabase live • status column</span> : '• Offline fallback'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button
@@ -475,7 +478,6 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
             style={{ padding: '9px 14px', fontSize: 13, background: pickUpList.length ? '#fef3c7' : 'var(--white)', borderColor: pickUpList.length ? '#fde68a' : 'var(--slate-200)', color: pickUpList.length ? '#92400e' : 'var(--slate-400)' }}
             onClick={() => pickUpList.length && setPickUpPrint({ mode: 'all' })}
             disabled={pickUpList.length === 0}
-            title={pickUpList.length ? `Print pick-up guide for ${pickUpList.length} confirmed order${pickUpList.length !== 1 ? 's' : ''} — hand to rider` : 'No confirmed orders needing pick-up right now'}
           >
             🛻 Pick-Up {pickUpList.length ? `(${pickUpList.length})` : ''}
           </button>
@@ -484,7 +486,6 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
             style={{ padding: '9px 14px', fontSize: 13, background: deliveryList.length ? '#dcfce7' : 'var(--white)', borderColor: deliveryList.length ? '#a7f3d0' : 'var(--slate-200)', color: deliveryList.length ? '#065f46' : 'var(--slate-400)' }}
             onClick={() => deliveryList.length && setDeliveryPrint({ mode: 'all' })}
             disabled={deliveryList.length === 0}
-            title={deliveryList.length ? `Print delivery guide for ${deliveryList.length} order${deliveryList.length !== 1 ? 's' : ''} out for delivery` : 'No orders out for delivery right now'}
           >
             🚚 Delivery {deliveryList.length ? `(${deliveryList.length})` : ''}
           </button>
@@ -501,17 +502,17 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
         <div className="stat-card green">
           <div className="stat-top"><span className="stat-label">Delivered</span><span className="stat-icon">✅</span></div>
           <div className="stat-value">{stats.delivered}</div>
-          <div className="stat-trend trend-up">{stats.active} still being prepared or delivered</div>
+          <div className="stat-trend trend-up">{stats.active} still pending</div>
         </div>
         <div className="stat-card amber">
           <div className="stat-top"><span className="stat-label">Total sales</span><span className="stat-icon">💧</span></div>
           <div className="stat-value">{peso(stats.revenue)}</div>
-          <div className="stat-trend" style={{ color: '#92400e' }}>Today {peso(stats.todayRevenue)} • Average {peso(Math.round(stats.avg))}</div>
+          <div className="stat-trend" style={{ color: '#92400e' }}>Average {peso(Math.round(stats.avg))}</div>
         </div>
-        <div className="stat-card red">
-          <div className="stat-top"><span className="stat-label">Need to cancel?</span><span className="stat-icon">⏱️</span></div>
-          <div className="stat-value" style={{ fontSize: 18 }}>Within 5 minutes</div>
-          <div className="stat-trend trend-down">You can cancel while order is still being prepared</div>
+        <div className="stat-card slate">
+          <div className="stat-top"><span className="stat-label">Status</span><span className="stat-icon">🗄️</span></div>
+          <div className="stat-value" style={{ fontSize: 14 }}>Database-driven</div>
+          <div className="stat-trend" style={{ color: 'var(--slate-600)' }}>No timers — update in DB</div>
         </div>
       </div>
 
@@ -520,7 +521,7 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search by order number, customer, or product..."
+            placeholder="Search by order number, customer, or status..."
             style={{ width: '100%', padding: '9px 12px 9px 34px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 13, background: 'var(--white)', color: 'var(--slate-700)' }}
           />
           <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--slate-400)', fontSize: 14 }}>⌕</span>
@@ -542,7 +543,7 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
           <button className="btn-xs" onClick={() => { setSearch(''); setStatusFilter('ALL'); setScheduleFilter('ALL'); setPaymentFilter('ALL') }}>Clear</button>
         )}
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span style={{ width: 8, height: 8, borderRadius: 999, background: '#22c55e', display: 'inline-block' }}></span> Updates automatically
+          <span style={{ width: 8, height: 8, borderRadius: 999, background: '#0ea5e9', display: 'inline-block' }}></span> DB synced
         </span>
       </div>
 
@@ -551,7 +552,7 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
           const isAll = id === 'ALL'
           const active = statusFilter === id
           const label = isAll ? 'All' : STATUS_META[id]?.label || id
-          const count = isAll ? orders.length : orders.filter(o => getOrderStatus(o, now).id === id).length
+          const count = isAll ? orders.length : orders.filter(o => getOrderStatus(o).id === id).length
           return (
             <button key={id} onClick={() => setStatusFilter(id)} style={{
               padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: `1px solid ${active ? 'var(--slate-900)' : 'var(--slate-200)'}`,
@@ -571,39 +572,29 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
               <th>Date & time</th>
               <th>Customer</th>
               <th>Items</th>
-              <th style={{ textAlign: 'right' }}>Subtotal</th>
-              <th style={{ textAlign: 'right' }}>Delivery</th>
               <th style={{ textAlign: 'right' }}>Total</th>
-              <th>Payment & schedule</th>
               <th>Status</th>
+              <th>Change status</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 24, color: 'var(--slate-500)' }}>No orders found. Try changing your search or filters.</td></tr>
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: 'var(--slate-500)' }}>No orders found.</td></tr>
             ) : filtered.map(order => {
-              const st = getOrderStatus(order, now)
-              const canCancel = canCancelOrder(order, now)
-              const elapsed = now - order.date
-              const withinWindow = elapsed < ORDER_CONSTANTS.CANCEL_WINDOW_MS
+              const st = getOrderStatus(order)
+              const canCancel = canCancelOrder(order)
               return (
                 <tr key={order.orderId}>
                   <td>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <b style={{ fontFamily: 'var(--mono)', color: 'var(--slate-900)', fontSize: 13 }}>{order.orderId}</b>
-                      <button className="btn-xs" style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => { navigator.clipboard.writeText(order.orderId); showToast && showToast('Copied ' + order.orderId) }} title="Copy order number">⎘</button>
+                      <button className="btn-xs" style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => { navigator.clipboard.writeText(order.orderId); showToast && showToast('Copied ' + order.orderId) }} title="Copy">⎘</button>
                     </div>
                   </td>
                   <td>
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--slate-900)' }}>{formatOrderDateShort(order.date)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>{(() => {
-                      const sec = Math.floor((now - order.date) / 1000)
-                      if (sec < 60) return `${sec} seconds ago`
-                      if (sec < 3600) return `${Math.floor(sec / 60)} minutes ago`
-                      if (sec < 86400) return `${Math.floor(sec / 3600)} hours ago`
-                      return `${Math.floor(sec / 86400)} days ago`
-                    })()}</div>
+                    <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>{order.status}</div>
                   </td>
                   <td>
                     <div style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: 13 }}>{order.customerName}</div>
@@ -615,41 +606,23 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
                       {order.items.map((it, i) => {
                         const p = it.product || productById[it.productId]
                         return <div key={i} style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
-                          <img src={p.image} alt={p.container} loading="lazy" style={{ width: 20, height: 20, objectFit: 'contain', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 4, padding: 1, flexShrink: 0 }} onError={e => { e.currentTarget.style.display = 'none' }} />
                           <span style={{ fontWeight: 600, color: 'var(--slate-900)' }}>{p.name} ({p.container})</span>
                           <span style={{ color: 'var(--slate-500)' }}>×{it.quantity}</span>
-                          <span style={{ marginLeft: 'auto', fontWeight: 700 }}>{peso(p.price * it.quantity)}</span>
                         </div>
                       })}
-                      <span style={{ fontSize: 11, color: 'var(--slate-500)' }}>{order.items.reduce((s, it) => s + it.quantity, 0)} items</span>
                     </div>
                   </td>
-                  <td style={{ textAlign: 'right', fontWeight: 700 }}>{peso(order.subtotal)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: order.deliveryFee === 0 ? '#059669' : 'var(--slate-900)' }}>{peso(order.deliveryFee)}{order.deliveryFee === 0 && ' Free'}</td>
                   <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--slate-900)' }}>{peso(order.total)}</td>
+                  <td><StatusPill statusId={st.id} /></td>
                   <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span className={`pill ${order.payment === 'Cash on Delivery' ? 'green' : 'slate'}`} style={{ fontSize: 11, padding: '3px 8px', justifyContent: 'center' }}>{order.payment}</span>
-                      <span className="pill slate" style={{ fontSize: 11, padding: '3px 8px', justifyContent: 'center' }}>{order.schedule}</span>
-                      <span style={{ fontSize: 11, color: order.payment === 'Cash on Delivery' ? '#059669' : '#dc2626', fontWeight: 700 }}>{order.payment === 'Cash on Delivery' ? 'Available' : 'Not available'}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <StatusPill statusId={st.id} />
-                    {!withinWindow && st.id !== 'CANCELED' && st.id !== 'DELIVERED' && <div style={{ fontSize: 11, color: 'var(--slate-400)', marginTop: 4 }}>Can no longer be canceled</div>}
+                    <select value={st.id} onChange={e => handleStatusChange(order.orderId, e.target.value)} style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 600, background: 'var(--white)' }}>
+                      {Object.values(OrderStatus).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                    </select>
                   </td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <button className="btn-xs" style={{ padding: '6px 10px' }} onClick={() => setSelected(order)}>View details</button>
-                      {canCancel ? (
-                        <button className="btn-xs danger" style={{ padding: '6px 10px' }} onClick={() => handleCancel(order.orderId)}>Cancel</button>
-                      ) : (
-                        (st.id === OrderStatus.CONFIRMED.id || st.id === OrderStatus.GALLON_TO_GET.id) ? null : (
-                          <span style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600 }}>
-                            {order.isCanceled ? 'Canceled' : st.id === 'DELIVERED' ? 'Completed' : ''}
-                          </span>
-                        )
-                      )}
+                      <button className="btn-xs" style={{ padding: '6px 10px' }} onClick={() => setSelected(order)}>View</button>
+                      {canCancel && <button className="btn-xs danger" style={{ padding: '6px 10px' }} onClick={() => handleCancel(order.orderId)}>Cancel</button>}
                     </div>
                   </td>
                 </tr>
@@ -663,58 +636,41 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
         <div style={{ background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
           <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--slate-900)' }}>How order status works</h3>
           <div style={{ display: 'grid', gap: 8, fontSize: 13, color: 'var(--slate-600)', lineHeight: 1.5 }}>
-            <div>New orders automatically move through these steps:</div>
+            <div>Order status is now stored in Supabase column <code>orders.status</code> — no automatic timers. Update via dropdown or detail view.</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
               <span className="pill" style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}>Pending</span>
               <span>→</span>
               <span className="pill" style={{ background: '#e0f2fe', color: '#0c4a6e', borderColor: '#bae6fd' }}>Confirmed</span>
               <span>→</span>
-              <span className="pill" style={{ background: '#ccfbf1', color: '#0f766e', borderColor: '#99f6e4' }}>Picking up</span>
+              <span className="pill" style={{ background: '#ccfbf1', color: '#0f766e', borderColor: '#99f6e4' }}>Pick Up</span>
               <span>→</span>
               <span className="pill" style={{ background: '#dcfce7', color: '#065f46', borderColor: '#a7f3d0' }}>Out for delivery</span>
               <span>→</span>
               <span className="pill" style={{ background: '#e2e8f0', color: '#334155', borderColor: '#cbd5e1' }}>Delivered</span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--slate-500)', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
-              You can cancel an order within the first 5 minutes while it is still being prepared.
+              Cancel is only allowed while status is Pending / Confirmed / Gallon Pick Up. Delivered orders cannot be canceled.
             </div>
           </div>
         </div>
-
         <div style={{ background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
-          <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--slate-900)' }}>Your data is safe</h3>
+          <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--slate-900)' }}>Database-driven</h3>
           <div style={{ fontSize: 13, color: 'var(--slate-600)', lineHeight: 1.6, display: 'grid', gap: 8 }}>
-            <div>All orders are saved on this device automatically. They stay even if you close the app or turn off your phone.</div>
+            <div>All orders are saved in Supabase <code>public.orders</code>. Status changes sync instantly via Realtime.</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <span className="pill green">Saved automatically</span>
-              <span className="pill blue">Works offline</span>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--slate-500)', background: '#f8fafc', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
-              Use the pick-up guide to help your rider collect the right gallons on time.
+              <span className="pill green">DB synced</span>
+              <span className="pill blue">No timers</span>
             </div>
           </div>
         </div>
-      </div>
-
-      <div style={{ margin: '0 18px 18px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10, fontSize: 12.5, color: '#065f46', lineHeight: 1.5 }}>
-        <span>💡</span>
-        <span><b>Tip:</b> Tap <b>View details</b> to see the full order, or <b>Cancel</b> within 5 minutes if you need to make a change. Orders that are already out for delivery or delivered can no longer be canceled.</span>
       </div>
 
       {selected && (
         <OrderDetailModal
           order={selected}
-          now={now}
           onClose={() => setSelected(null)}
           onCancel={handleCancel}
-          onPrintPickUp={(order) => {
-            setSelected(null)
-            setPickUpPrint({ mode: 'single', order })
-          }}
-          onPrintDelivery={(order) => {
-            setSelected(null)
-            setDeliveryPrint({ mode: 'single', order })
-          }}
+          onUpdateStatus={handleStatusChange}
         />
       )}
       {showNew && (
@@ -723,7 +679,6 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
       {pickUpPrint && (
         <PickUpPrintSheet
           orders={pickUpList}
-          now={now}
           singleOrder={pickUpPrint.mode === 'single' ? pickUpPrint.order : null}
           onClose={() => setPickUpPrint(null)}
         />
@@ -731,7 +686,6 @@ export default function OrdersView({ orders, onUpdateOrders, showToast }) {
       {deliveryPrint && (
         <DeliveryPrintSheet
           orders={deliveryList}
-          now={now}
           singleOrder={deliveryPrint.mode === 'single' ? deliveryPrint.order : null}
           onClose={() => setDeliveryPrint(null)}
         />

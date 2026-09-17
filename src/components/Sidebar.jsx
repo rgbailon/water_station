@@ -4,7 +4,7 @@ const nav = [
   { id: 'orders', label: 'Orders', sub: 'Customer Orders', icon: '🧾' },
   { id: 'products', label: 'Products', sub: 'Water Catalog • 18 items', icon: '🧴' },
   { id: 'inventory', label: 'Inventory', sub: 'Stock & Supplies', icon: '📦' },
-  { id: 'hiram', label: 'Hiram Tracker', sub: 'Borrowed Gallons', icon: '🤝' },
+  { id: 'borrowed', label: 'Borrowed', sub: 'Borrowed Gallons', icon: '🤝' },
   { id: 'expenses', label: 'Expenses', sub: 'Costs & Bills', icon: '💸' },
   { id: 'reports', label: 'Reports', sub: 'Analytics', icon: '📈' },
 ]

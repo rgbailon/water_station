@@ -96,6 +96,9 @@ export default function StockModal({ isOpen, onClose, items, initialItem, onSave
       threshold: threshold,
       icon: newIcon,
       unit: newUnit,
+      is_active: true,
+      is_archived: false,
+      is_low_stock: filled <= threshold,
     }
     onSave(null, newItem, { note })
   }

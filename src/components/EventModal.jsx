@@ -27,19 +27,23 @@ export default function EventModal({ date, eventToEdit, onClose, onSave, onDelet
   const [barangay, setBarangay] = useState(() => normalizeBarangay(eventToEdit?.customer || ''))
   const [amount, setAmount] = useState(eventToEdit?.amount || '')
   const [note, setNote] = useState(eventToEdit?.note || '')
+  const [isPaid, setIsPaid] = useState(eventToEdit?.is_paid ?? (eventToEdit?.type==='sale'||eventToEdit?.type==='delivery'))
+  const [isRecurring, setIsRecurring] = useState(eventToEdit?.is_recurring ?? false)
+  const [isArchived, setIsArchived] = useState(eventToEdit?.is_archived ?? false)
 
   useEffect(() => {
     if (eventToEdit) {
       setType(eventToEdit.type)
       setCustomerName(eventToEdit.title || '')
       setBarangay(normalizeBarangay(eventToEdit.customer || ''))
-      // if customer was not a barangay, keep raw value as note fallback? Keep barangay as is if not found, try to preserve
       if (eventToEdit.customer && !normalizeBarangay(eventToEdit.customer)) {
-        // keep raw if it looks like a name with barangay hint; try to set to Other
         setBarangay(eventToEdit.customer.includes('Brgy') ? normalizeBarangay(eventToEdit.customer) : '')
       }
       setAmount(eventToEdit.amount || '')
       setNote(eventToEdit.note || '')
+      setIsPaid(eventToEdit.is_paid ?? (eventToEdit.type==='sale'||eventToEdit.type==='delivery'))
+      setIsRecurring(eventToEdit.is_recurring ?? false)
+      setIsArchived(eventToEdit.is_archived ?? false)
     }
   }, [eventToEdit])
 
@@ -54,7 +58,10 @@ export default function EventModal({ date, eventToEdit, onClose, onSave, onDelet
       customer: barangay,
       amount: Number(amount) || 0,
       note,
-      icon: tabs.find(t=>t.id===type)?.icon || '📅'
+      icon: tabs.find(t=>t.id===type)?.icon || '📅',
+      is_paid: isPaid,
+      is_archived: isArchived,
+      is_recurring: isRecurring,
     }
     onSave(payload, !!eventToEdit)
   }
@@ -106,8 +113,21 @@ export default function EventModal({ date, eventToEdit, onClose, onSave, onDelet
             </div>
           </div>
 
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center', padding:'10px 12px', background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10 }}>
+            <label style={{ display:'flex', gap:6, alignItems:'center', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+              <input type="checkbox" checked={isPaid} onChange={e=>setIsPaid(e.target.checked)} /> Paid ✓
+            </label>
+            <label style={{ display:'flex', gap:6, alignItems:'center', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+              <input type="checkbox" checked={isRecurring} onChange={e=>setIsRecurring(e.target.checked)} /> ↻ Recurring
+            </label>
+            <label style={{ display:'flex', gap:6, alignItems:'center', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+              <input type="checkbox" checked={isArchived} onChange={e=>setIsArchived(e.target.checked)} /> Archived
+            </label>
+            <span style={{ marginLeft:'auto', fontSize:11, color:'var(--slate-500)' }}>Booleans → Supabase</span>
+          </div>
+
           <div style={{ fontSize: '12px', color: 'var(--slate-500)', background: 'var(--slate-50)', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--slate-200)' }}>
-            💡 This will appear on the calendar as <b style={{ color: 'var(--slate-700)' }}>{tabs.find(t=>t.id===type)?.label}</b> for <b>{barangay || '—'}</b>. All data stays on this device and is saved automatically.
+            💡 This will appear on the calendar as <b style={{ color: 'var(--slate-700)' }}>{tabs.find(t=>t.id===type)?.label}</b> for <b>{barangay || '—'}</b>. Syncs to Supabase when configured, otherwise saved locally.
           </div>
         </div>
 

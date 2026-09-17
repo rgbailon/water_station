@@ -12,8 +12,8 @@ function BlankRows({ count, cols }) {
   ))
 }
 
-export default function PickUpPrintSheet({ orders = [], now: nowProp, onClose, singleOrder = null }) {
-  const now = nowProp ?? Date.now()
+export default function PickUpPrintSheet({ orders = [], onClose, singleOrder = null }) {
+  const now = Date.now()
   const date = new Date(now)
   const dateStr = formatPHLong(date)
   const list = singleOrder ? [singleOrder] : orders
@@ -108,7 +108,7 @@ export default function PickUpPrintSheet({ orders = [], now: nowProp, onClose, s
                           <div>{itemsText}</div>
                           <div style={{ marginTop: 3, color: '#0c4a6e', fontWeight: 700 }}>{o.items.reduce((s, it) => s + it.quantity, 0)} gallon(s)</div>
                         </td>
-                        <td style={{ textAlign: 'center', fontWeight: 700, fontSize: '7.5pt' }}>{o.schedule}<div style={{ fontSize: '6.5pt', color: '#64748b', fontWeight: 400 }}>{getOrderStatus(o, now).label}</div></td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, fontSize: '7.5pt' }}>{o.schedule}<div style={{ fontSize: '6.5pt', color: '#64748b', fontWeight: 400 }}>{getOrderStatus(o).label}</div></td>
                         <td style={{ fontSize: '7pt' }}>{o.notes || '—'}</td>
                         <td className="check">☐</td>
                       </tr>

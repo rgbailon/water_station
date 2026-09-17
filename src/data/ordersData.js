@@ -36,15 +36,10 @@ export const productImages = {
   Slim: 'https://i.ibb.co/r2KL42XR/514194012-24405278279058403-8323724181837978356-n.jpg',
 }
 
-// Shop settings
+// Shop settings — delivery fees only; order status is now database-driven (no timers)
 export const ORDER_CONSTANTS = {
   MIN_DELIVERY_FREE: 100.0,
   DELIVERY_FEE_FLAT: 0.0,
-  STATUS_PENDING_MS: 60000,
-  STATUS_CONFIRMED_MS: 120000,
-  STATUS_READY_MS: 360000,
-  STATUS_DELIVERED_MS: 720000,
-  CANCEL_WINDOW_MS: 300000, // 5 min
 }
 
 // How orders are saved on this device
@@ -340,24 +335,32 @@ sampleProducts.forEach(p => {
 // Helper map for fast lookup
 export const productById = Object.fromEntries(sampleProducts.map(p => [p.id, p]))
 
-// 4. Order status changes over time
-export function getOrderStatus(order, now = Date.now()) {
-  if (order.isCanceled) return OrderStatus.CANCELED
-  const elapsed = now - order.date
-  if (elapsed < ORDER_CONSTANTS.STATUS_PENDING_MS) return OrderStatus.PENDING
-  if (elapsed < ORDER_CONSTANTS.STATUS_CONFIRMED_MS) return OrderStatus.CONFIRMED
-  if (elapsed < ORDER_CONSTANTS.STATUS_READY_MS) return OrderStatus.GALLON_TO_GET
-  if (elapsed < ORDER_CONSTANTS.STATUS_DELIVERED_MS) return OrderStatus.OUT_FOR_DELIVERY
-  return OrderStatus.DELIVERED
+// 4. Order status — now database-driven (no timers)
+// `order.status` is the source of truth (e.g. PENDING, CONFIRMED, GALLON_TO_GET, OUT_FOR_DELIVERY, DELIVERED, CANCELED).
+// Legacy `isCanceled` / `is_canceled` boolean is still honored for backward compat.
+export function getOrderStatus(order) {
+  if (!order) return OrderStatus.PENDING
+  if (order.isCanceled || order.is_canceled) return OrderStatus.CANCELED
+  const raw = order.status || order.order_status
+  if (raw) {
+    const key = String(raw).toUpperCase()
+    if (OrderStatus[key]) return OrderStatus[key]
+    const byId = Object.values(OrderStatus).find(v => v.id === key)
+    if (byId) return byId
+  }
+  return OrderStatus.PENDING
 }
 
-export function canCancelOrder(order, now = Date.now()) {
-  if (order.isCanceled) return false
-  const elapsed = now - order.date
-  if (elapsed >= ORDER_CONSTANTS.CANCEL_WINDOW_MS) return false
-  const s = getOrderStatus(order, now).id
+export function canCancelOrder(order) {
+  if (!order) return false
+  if (order.isCanceled || order.is_canceled) return false
+  const s = getOrderStatus(order).id
+  // Only allow cancel while still in preparation phases
   return s === OrderStatus.PENDING.id || s === OrderStatus.CONFIRMED.id || s === OrderStatus.GALLON_TO_GET.id
 }
+
+// Helper: list of statuses that allow manual transition (for UI dropdown)
+export const ORDER_STATUS_OPTIONS = Object.values(OrderStatus)
 
 export function formatOrderDate(epochMillis) {
   const d = new Date(epochMillis)
@@ -376,21 +379,22 @@ function calcTotals(items) {
   return { subtotal, deliveryFee, total }
 }
 
-function mkOrder({ orderId, offsetMs, customerName, phone, address, items, payment = 'Cash on Delivery', schedule = 'Today', notes = '', isCanceled = false }) {
-  const date = Date.now() - offsetMs
+function mkOrder({ orderId, date, status = 'PENDING', customerName, phone, address, items, payment = 'Cash on Delivery', schedule = 'Today', notes = '', isCanceled = false }) {
+  const ts = date ?? Date.now()
+  const finalStatus = isCanceled ? 'CANCELED' : status
   const { subtotal, deliveryFee, total } = calcTotals(items)
-  // expand items for UI: [{productId, quantity, product}]
   const expanded = items.map(it => ({ ...it, product: productById[it.productId] }))
-  return { orderId, date, customerName, phone, address, items: expanded, subtotal, deliveryFee, total, payment, schedule, notes, isCanceled }
+  return { orderId, date: ts, status: finalStatus, customerName, phone, address, items: expanded, subtotal, deliveryFee, total, payment, schedule, notes, isCanceled: finalStatus === 'CANCELED' }
 }
 
-// Sample orders showing each status
+// Sample orders — each has explicit database status (no timers)
 export function generateSampleOrders() {
+  const now = Date.now()
   return [
-    // Live statuses (will animate through pipeline)
     mkOrder({
       orderId: 'WFR-4821',
-      offsetMs: 25 * 1000, // 25s ago -> Pending
+      date: now - 25 * 60 * 1000,
+      status: 'PENDING',
       customerName: 'Juan Dela Cruz',
       phone: '0912-345-6789',
       address: 'Brgy. Monbon, Irosin - Purok 3 near chapel',
@@ -401,7 +405,8 @@ export function generateSampleOrders() {
     }),
     mkOrder({
       orderId: 'WFR-7392',
-      offsetMs: 90 * 1000, // 1m30s -> Order Confirmed
+      date: now - 2 * 60 * 60 * 1000,
+      status: 'CONFIRMED',
       customerName: 'Maria Santos',
       phone: '0917-000-1122',
       address: 'Brgy. Patag, Irosin',
@@ -412,7 +417,8 @@ export function generateSampleOrders() {
     }),
     mkOrder({
       orderId: 'WFR-6105',
-      offsetMs: 4 * 60 * 1000, // 4min -> Gallon Pick Up
+      date: now - 4 * 60 * 60 * 1000,
+      status: 'GALLON_TO_GET',
       customerName: 'Ana Reyes',
       phone: '0905-123-4567',
       address: 'Brgy. San Isidro, Irosin - San Isidro Elementary',
@@ -423,7 +429,8 @@ export function generateSampleOrders() {
     }),
     mkOrder({
       orderId: 'WFR-2847',
-      offsetMs: 8 * 60 * 1000, // 8min -> Out for Delivery
+      date: now - 8 * 60 * 60 * 1000,
+      status: 'OUT_FOR_DELIVERY',
       customerName: 'Kap. Reyes',
       phone: '0917-***-4321',
       address: 'Brgy. Patag - Barangay Hall',
@@ -434,7 +441,8 @@ export function generateSampleOrders() {
     }),
     mkOrder({
       orderId: 'WFR-9153',
-      offsetMs: 15 * 60 * 1000, // 15min -> Delivered
+      date: now - 15 * 60 * 60 * 1000,
+      status: 'DELIVERED',
       customerName: 'Mina Store',
       phone: '0920-***-9876',
       address: 'Brgy. Bagsangan - National Road',
@@ -445,7 +453,8 @@ export function generateSampleOrders() {
     }),
     mkOrder({
       orderId: 'WFR-5033',
-      offsetMs: 2 * 60 * 1000, // 2min but canceled
+      date: now - 2 * 60 * 60 * 1000,
+      status: 'CANCELED',
       customerName: 'Lito Manalo',
       phone: '0930-111-2222',
       address: 'Brgy. Carriedo, Irosin',
@@ -459,6 +468,7 @@ export function generateSampleOrders() {
     {
       orderId: 'WFR-1234',
       date: new Date('2026-09-11T09:30:00+08:00').getTime(),
+      status: 'DELIVERED',
       customerName: 'Aling Nena Sari-Sari',
       phone: '0905-***-6789',
       address: 'Brgy. San Isidro - near market',
@@ -474,6 +484,7 @@ export function generateSampleOrders() {
     {
       orderId: 'WFR-8761',
       date: new Date('2026-09-10T14:00:00+08:00').getTime(),
+      status: 'DELIVERED',
       customerName: 'Irosin NHS Canteen',
       phone: '0930-***-1111',
       address: 'San Julian, Irosin - Irosin NHS',

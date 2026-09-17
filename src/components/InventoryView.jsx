@@ -3,7 +3,7 @@ import { peso } from '../utils/dateUtils'
 import StockModal from './StockModal'
 import { exportInventoryExcel } from '../utils/export'
 
-export default function InventoryView({ inventory, onUpdate }) {
+export default function InventoryView({ inventory, onUpdate, dbStatus }) {
   const [showModal, setShowModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
 
@@ -24,7 +24,7 @@ export default function InventoryView({ inventory, onUpdate }) {
       <div className="section-head">
         <div>
           <h2>📦 Inventory & Supplies</h2>
-          <p>Track filled/empty gallons, bottles, caps & filters • Low stock highlighted in red</p>
+          <p>Track filled/empty gallons, bottles, caps & filters • Low stock highlighted in red {dbStatus?.mode==='online' && <span className="pill green" style={{ fontSize: 11 }}>Supabase live • booleans: is_active / is_archived / is_low_stock</span>}</p>
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button className="btn-xs" style={{ padding:'9px 14px', fontSize:'13px' }} onClick={()=> exportInventoryExcel(inventory)} title="Download spreadsheet">⬇ Download</button>
@@ -44,7 +44,12 @@ export default function InventoryView({ inventory, onUpdate }) {
                   <h3>{item.name}</h3>
                   <p>{item.sku} • {peso(item.price)} {item.price>0?'/ unit':''}</p>
                 </div>
-                {isLow && <span className="pill red">Low</span>}
+                <div style={{ display:'flex', gap:6, flexDirection:'column', alignItems:'flex-end' }}>
+                  {isLow && <span className="pill red">Low</span>}
+                  {item.is_low_stock && <span className="pill amber" style={{ fontSize:10 }}>DB: Low</span>}
+                  {item.is_archived && <span className="pill slate" style={{ fontSize:10 }}>Archived</span>}
+                  {!item.is_active && <span className="pill slate" style={{ fontSize:10 }}>Inactive</span>}
+                </div>
               </div>
               <div className="inv-stats">
                 <div className={`inv-stat ${isLow?'low':''}`}><b>{item.stockFilled}</b><span>Filled</span></div>

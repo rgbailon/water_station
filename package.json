@@ -7,10 +7,17 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:test": "node supabase/test-connection.mjs",
+    "db:push": "node -e \"import('pg').then(async m=>{const c=new m.default.Client({connectionString:process.env.DATABASE_URL||require('dotenv').config().parsed?.DATABASE_URL||'postgresql://postgres.ddzlawodgqziuoanudbb:%40waterstationRogel89@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true',ssl:{rejectUnauthorized:false}});await c.connect();const fs=await import('fs');const sql=fs.readFileSync('supabase/schema.sql','utf8');await c.query(sql);console.log('schema applied');await c.end()})\"",
+    "db:seed": "node supabase/seed.mjs",
+    "db:reset": "npm run db:push && npm run db:seed"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
     "date-fns": "^4.4.0",
+    "dotenv": "^17.4.2",
+    "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

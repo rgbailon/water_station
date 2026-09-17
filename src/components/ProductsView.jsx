@@ -3,7 +3,8 @@ import { peso } from '../utils/dateUtils'
 import { sampleProducts } from '../data/ordersData'
 import { exportProductsExcel } from '../utils/export'
 
-export default function ProductsView() {
+export default function ProductsView({ products }) {
+  const list = products?.length ? products : sampleProducts
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('ALL')
   const [bottleFilter, setBottleFilter] = useState('ALL')
@@ -11,7 +12,7 @@ export default function ProductsView() {
   const [viewMode, setViewMode] = useState('grid') // grid | table
 
   const filtered = useMemo(() => {
-    return sampleProducts.filter(p => {
+    return list.filter(p => {
       if (typeFilter !== 'ALL' && p.type !== typeFilter) return false
       if (bottleFilter !== 'ALL' && p.bottleSituation !== bottleFilter) return false
       if (containerFilter !== 'ALL' && p.container !== containerFilter) return false
@@ -22,17 +23,17 @@ export default function ProductsView() {
       }
       return true
     })
-  }, [search, typeFilter, bottleFilter, containerFilter])
+  }, [list, search, typeFilter, bottleFilter, containerFilter])
 
   const stats = useMemo(() => {
-    const purified = sampleProducts.filter(p => p.type === 'PURIFIED').length
-    const mineral = sampleProducts.filter(p => p.type === 'MINERAL').length
-    const alkaline = sampleProducts.filter(p => p.type === 'ALKALINE').length
-    const available = sampleProducts.filter(p => p.type === 'PURIFIED').length
-    const cheapest = Math.min(...sampleProducts.map(p => p.price))
-    const expensive = Math.max(...sampleProducts.map(p => p.price))
-    return { total: sampleProducts.length, purified, mineral, alkaline, available, cheapest, expensive }
-  }, [])
+    const purified = list.filter(p => p.type === 'PURIFIED').length
+    const mineral = list.filter(p => p.type === 'MINERAL').length
+    const alkaline = list.filter(p => p.type === 'ALKALINE').length
+    const available = list.filter(p => p.is_available ?? p.type === 'PURIFIED').length
+    const cheapest = Math.min(...list.map(p => p.price))
+    const expensive = Math.max(...list.map(p => p.price))
+    return { total: list.length, purified, mineral, alkaline, available, cheapest, expensive }
+  }, [list])
 
   return (
     <div>
@@ -42,7 +43,7 @@ export default function ProductsView() {
           <p>All water refill options — 18 choices • Prices, sizes and bottle types • Purified ready to order today</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn-xs" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => exportProductsExcel(filtered.length ? filtered : sampleProducts)} title="Download spreadsheet">⬇ Download</button>
+          <button className="btn-xs" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => exportProductsExcel(filtered.length ? filtered : list)} title="Download spreadsheet">⬇ Download</button>
           <div style={{ display: 'inline-flex', border: '1px solid var(--slate-200)', borderRadius: 9, overflow: 'hidden' }}>
             <button
               onClick={() => setViewMode('grid')}

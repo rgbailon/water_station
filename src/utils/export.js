@@ -391,17 +391,8 @@ export function exportReportsExcel({ events, inventory }) {
 export function exportOrdersExcel(orders) {
   const headers = ['Order Number', 'Date & Time', 'Customer', 'Phone', 'Address', 'Items', 'Quantity', 'Subtotal', 'Delivery Fee', 'Total', 'Payment', 'Schedule', 'Status', 'Canceled', 'Notes']
   const rows = [...orders].sort((a, b) => b.date - a.date).map(o => {
-    // derive status like in ordersData but inline to avoid import cycle
-    let status = 'PENDING'
-    if (o.isCanceled) status = 'CANCELED'
-    else {
-      const elapsed = Date.now() - o.date
-      if (elapsed < 60000) status = 'Pending'
-      else if (elapsed < 120000) status = 'Order Confirmed'
-      else if (elapsed < 360000) status = 'Gallon Pick Up'
-      else if (elapsed < 720000) status = 'Out for Delivery'
-      else status = 'Delivered'
-    }
+    // database-driven status (no timers)
+    const status = o.status || (o.isCanceled || o.is_canceled ? 'CANCELED' : 'PENDING')
     const d = new Date(o.date)
     const datePH = d.toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     const itemsStr = o.items.map(it => {
@@ -422,7 +413,7 @@ export function exportOrdersExcel(orders) {
     title: 'TUBIG IROSIN — CUSTOMER ORDERS',
     subtitle: `${orders.length} orders • ${peso(totalRevenue)} total sales • All orders from this device`,
     headers, rows, summary,
-    footer: 'Order status moves automatically: Pending → Confirmed → Picking up → Out for delivery → Delivered. You can cancel within the first 5 minutes.',
+    footer: 'Order status is database-driven. Update status manually in Supabase/orders table.',
   })
   downloadBlob(html, `Tubig_Irosin_Orders_${new Date().toISOString().slice(0, 10)}.xls`)
 }

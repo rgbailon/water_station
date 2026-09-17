@@ -12,8 +12,8 @@ function BlankRows({ count, cols }) {
   ))
 }
 
-export default function DeliveryPrintSheet({ orders = [], now: nowProp, onClose, singleOrder = null }) {
-  const now = nowProp ?? Date.now()
+export default function DeliveryPrintSheet({ orders = [], onClose, singleOrder = null }) {
+  const now = Date.now()
   const date = new Date(now)
   const dateStr = formatPHLong(date)
   const list = singleOrder ? [singleOrder] : orders
@@ -110,7 +110,7 @@ export default function DeliveryPrintSheet({ orders = [], now: nowProp, onClose,
                         <td style={{ textAlign: 'center', fontSize: '7.5pt' }}>
                           <div style={{ fontWeight: 800 }}>{peso(o.total)}</div>
                           <div style={{ fontSize: '6.5pt', color: '#065f46', fontWeight: 600 }}>{o.payment}</div>
-                          <div style={{ fontSize: '6.5pt', color: '#64748b' }}>{o.schedule} • {getOrderStatus(o, now).label}</div>
+                          <div style={{ fontSize: '6.5pt', color: '#64748b' }}>{o.schedule} • {getOrderStatus(o).label}</div>
                         </td>
                         <td style={{ fontSize: '7pt', textAlign: 'center' }}>{o.schedule}</td>
                         <td className="check">☐</td>
