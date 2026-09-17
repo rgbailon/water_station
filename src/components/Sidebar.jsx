@@ -9,8 +9,7 @@ const nav = [
   { id: 'reports', label: 'Reports', sub: 'Analytics', icon: '📈' },
 ]
 
-export default function Sidebar({ active, onChange, stats, collapsed, onToggleCollapse }) {
-  const todayLabel = new Date().toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })
+export default function Sidebar({ active, onChange, collapsed, onToggleCollapse }) {
   const isCollapsed = Boolean(collapsed)
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : 'mobile-open'}`} aria-label="Primary navigation">
@@ -49,18 +48,6 @@ export default function Sidebar({ active, onChange, stats, collapsed, onToggleCo
           </button>
         ))}
       </nav>
-
-      <div className="sidebar-stats" aria-hidden={isCollapsed}>
-        <h4>Today — {todayLabel}</h4>
-        <div className="stat-row"><span>Filled Ready</span><strong>{stats.filled} gals</strong></div>
-        <div className="stat-row"><span>Empty Return</span><strong>{stats.empty} gals</strong></div>
-        <div className="stat-row"><span>Hiram Active</span><strong style={{ color: '#d97706' }}>{stats.hiram} gals</strong></div>
-        <div className="stat-row"><span>Low Stock Alerts</span><strong style={{ color: '#dc2626' }}>{stats.lows} items</strong></div>
-      </div>
-
-      <div className="sidebar-tip" style={{ padding: '0 12px 14px', fontSize: '11.5px', color: 'var(--slate-400)', lineHeight: 1.5, textAlign: 'center' }}>
-        💡 Tip: Click any calendar date to add a sale or expense.<br />All data is stored locally on this device.
-      </div>
 
       {/* Mobile-only close hint when expanded as drawer */}
       {!isCollapsed && (

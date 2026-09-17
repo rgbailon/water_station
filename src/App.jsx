@@ -149,7 +149,7 @@ export default function App() {
       <Header onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} />
 
       <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Sidebar active={activeTab} onChange={handleNavChange} stats={stats} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
+        <Sidebar active={activeTab} onChange={handleNavChange} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
 
         <main className="main-card">
           {activeTab === 'dashboard' && (

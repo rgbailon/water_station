@@ -119,14 +119,14 @@
 .app-header .btn-primary { padding: 7px 11px; font-size: 12.5px; border-radius: 9px; gap: 6px; }
 .app-header .btn-ghost { padding: 6px 10px; font-size: 12px; border-radius: 9px; gap: 6px; }
 
-/* ===== Shell ===== */
+/* ===== Shell — navigations more left, use extra space ===== */
 .app-shell {
-  max-width: 1360px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 20px 20px 32px;
+  padding: 16px 12px 32px 12px;
   display: grid;
   grid-template-columns: 240px 1fr;
-  gap: 20px;
+  gap: 16px;
   align-items: start;
   transition: grid-template-columns 0.24s ease;
 }
@@ -161,7 +161,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 12px 0;
+  padding: 8px 8px 0;
 }
 .sidebar-top-hint {
   font-size: 11px;
@@ -212,16 +212,16 @@
 .collapse-label { font-size: 12.5px; }
 
 .sidebar-nav {
-  padding: 12px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 12px;
+  gap: 10px;
+  padding: 9px 10px;
   border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
