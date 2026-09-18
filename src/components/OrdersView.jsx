@@ -3,10 +3,12 @@ import { peso } from '../utils/dateUtils'
 import {
   productById,
   OrderStatus,
+  PaymentStatus,
   ORDER_CONSTANTS,
   paymentOptions,
   scheduleOptions,
   getOrderStatus,
+  getPaymentStatus,
   canCancelOrder,
   formatOrderDate,
   formatOrderDateShort,
@@ -25,6 +27,10 @@ const STATUS_META = {
 
 function StatusPill({ statusId }) {
   const m = STATUS_META[statusId] || STATUS_META.PENDING
+  return <span className="pill" style={{ background: m.bg, color: m.color, borderColor: m.border }}>{m.label}</span>
+}
+function PaymentPill({ statusId }) {
+  const m = PaymentStatus[statusId] || PaymentStatus.UNPAID
   return <span className="pill" style={{ background: m.bg, color: m.color, borderColor: m.border }}>{m.label}</span>
 }
 
@@ -63,9 +69,10 @@ function Timeline({ order }) {
   )
 }
 
-function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus }) {
+function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus, onUpdatePaymentStatus }) {
   if (!order) return null
   const status = getOrderStatus(order)
+  const paymentStatus = getPaymentStatus(order)
   const canCancel = canCancelOrder(order)
   const borrowed = order.borrowedCount ?? order.borrowed_count ?? order.items.filter(it => (it.is_borrow || it.product?.bottleSituation === 'BORROW')).reduce((s,it)=>s+(it.quantity||0),0)
   return (
@@ -73,8 +80,8 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus }) {
       <div className="modal" style={{ maxWidth: 760, maxHeight: '92vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
         <div className="modal-head" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
           <div>
-            <h3 style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{order.orderId} <StatusPill statusId={status.id} /></h3>
-            <p>{formatOrderDate(order.date)} • {order.schedule} • {order.payment} • <span className="pill slate" style={{ fontSize: 11 }}>DB status: {status.label}</span></p>
+            <h3 style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{order.orderId} <StatusPill statusId={status.id} /> <PaymentPill statusId={paymentStatus.id} /></h3>
+            <p>{formatOrderDate(order.date)} • {order.schedule} • {order.payment} • <span className="pill slate" style={{ fontSize: 11 }}>DB status: {status.label}</span> • <span className="pill" style={{ fontSize: 11, background: paymentStatus.bg, color: paymentStatus.color, borderColor: paymentStatus.border }}>💳 {paymentStatus.label}</span></p>
           </div>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
@@ -88,6 +95,17 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus }) {
                 {Object.values(OrderStatus).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
               <span style={{ fontSize: 11, color: 'var(--slate-500)' }}>Changes are saved to Supabase immediately.</span>
+            </div>
+          )}
+          {onUpdatePaymentStatus && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', background: paymentStatus.id === 'PAID' ? '#ecfdf5' : '#fffbeb', border: `1px solid ${paymentStatus.id === 'PAID' ? '#a7f3d0' : '#fde68a'}`, borderRadius: 10, padding: '10px 12px' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: paymentStatus.id === 'PAID' ? '#065f46' : '#92400e' }}>💳 Payment:</span>
+              <PaymentPill statusId={paymentStatus.id} />
+              <select value={paymentStatus.id} onChange={e => onUpdatePaymentStatus(order.orderId, e.target.value)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)' }}>
+                <option value="PAID">Paid</option>
+                <option value="UNPAID">Unpaid</option>
+              </select>
+              <span style={{ fontSize: 11, color: 'var(--slate-500)' }}>Audit: {paymentStatus.id} • updates <code>orders.payment_status</code></span>
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -110,9 +128,10 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Subtotal</span><b>{peso(order.subtotal)}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Delivery fee</span><b>{peso(order.deliveryFee)} {order.deliveryFee === 0 && <span style={{ fontWeight: 600, color: '#059669' }}>Free</span>}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: borrowed > 0 ? '#fffbeb' : 'var(--white)', border: borrowed > 0 ? '1px solid #fde68a' : '1px solid var(--slate-200)', borderRadius: 8, padding: '6px 8px' }}><span style={{ color: borrowed > 0 ? '#92400e' : 'var(--slate-500)', fontWeight: 700 }}>🤝 Borrowed (audit)</span><b style={{ color: borrowed > 0 ? '#92400e' : 'var(--slate-900)' }}>{borrowed} gals {borrowed > 0 ? <span className="pill amber" style={{ fontSize: 10, marginLeft: 6 }}>Monitored</span> : <span style={{ fontWeight: 500, color: 'var(--slate-400)' }}>— none</span>}</b></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: paymentStatus.id === 'PAID' ? '#dcfce7' : '#fef3c7', border: `1px solid ${paymentStatus.id === 'PAID' ? '#a7f3d0' : '#fde68a'}`, borderRadius: 8, padding: '6px 8px' }}><span style={{ color: paymentStatus.id === 'PAID' ? '#065f46' : '#92400e', fontWeight: 700 }}>💳 Payment status</span><b style={{ color: paymentStatus.id === 'PAID' ? '#065f46' : '#92400e', display: 'flex', gap: 6, alignItems: 'center' }}><PaymentPill statusId={paymentStatus.id} /> {paymentStatus.id === 'PAID' ? 'Audit: paid' : 'Audit: unpaid'}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '8px 10px', background: '#0f172a', color: 'white', borderRadius: 8 }}><span>Total amount</span><b>{peso(order.total)}</b></div>
                 <div style={{ fontSize: 11, color: 'var(--slate-500)', lineHeight: 1.5, background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
-                  Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above. Borrowed is audited in Supabase <code>orders.borrowed_count</code>.
+                  Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above. Borrowed audited in <code>orders.borrowed_count</code> • Payment audited in <code>orders.payment_status</code>.
                 </div>
               </div>
             </div>
@@ -399,12 +418,13 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
   )
 }
 
-export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCreateOrder, onUpdateStatus, showToast, dbStatus }) {
+export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCreateOrder, onUpdateStatus, onUpdatePaymentStatus, showToast, dbStatus }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [scheduleFilter, setScheduleFilter] = useState('ALL')
   const [paymentFilter, setPaymentFilter] = useState('ALL')
   const [borrowedFilter, setBorrowedFilter] = useState('ALL')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL')
   const [selected, setSelected] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [pickUpPrint, setPickUpPrint] = useState(null)
@@ -436,7 +456,10 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
     const avg = total - canceled > 0 ? revenue / (total - canceled) : 0
     const borrowedOrders = orders.filter(o => (o.borrowedCount ?? o.borrowed_count ?? 0) > 0).length
     const totalBorrowed = orders.reduce((s, o) => s + (o.borrowedCount ?? o.borrowed_count ?? 0), 0)
-    return { total, canceled, active, delivered, revenue, avg, byStatus, borrowedOrders, totalBorrowed }
+    const paidOrders = orders.filter(o => getPaymentStatus(o).id === 'PAID').length
+    const unpaidOrders = orders.filter(o => getPaymentStatus(o).id === 'UNPAID').length
+    const unpaidRevenue = orders.filter(o => getPaymentStatus(o).id === 'UNPAID' && getOrderStatus(o).id !== 'CANCELED').reduce((s, o) => s + o.total, 0)
+    return { total, canceled, active, delivered, revenue, avg, byStatus, borrowedOrders, totalBorrowed, paidOrders, unpaidOrders, unpaidRevenue }
   }, [orders])
 
   const filtered = useMemo(() => {
@@ -450,14 +473,15 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
         if (borrowedFilter === 'BORROWED' && bc === 0) return false
         if (borrowedFilter === 'NOT_BORROWED' && bc > 0) return false
       }
+      if (paymentStatusFilter !== 'ALL' && getPaymentStatus(o).id !== paymentStatusFilter) return false
       if (search.trim()) {
         const q = search.toLowerCase()
-        const hay = `${o.orderId} ${o.customerName} ${o.phone || ''} ${o.address || ''} ${o.notes || ''} ${o.status || ''} ${o.items.map(it => (it.product || productById[it.productId])?.name || '').join(' ')}`.toLowerCase()
+        const hay = `${o.orderId} ${o.customerName} ${o.phone || ''} ${o.address || ''} ${o.notes || ''} ${o.status || ''} ${o.payment_status || ''} ${o.items.map(it => (it.product || productById[it.productId])?.name || '').join(' ')}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
     }).sort((a, b) => b.date - a.date)
-  }, [orders, statusFilter, scheduleFilter, paymentFilter, borrowedFilter, search])
+  }, [orders, statusFilter, scheduleFilter, paymentFilter, borrowedFilter, paymentStatusFilter, search])
 
   const handleCancel = (orderId) => {
     if (onCancelOrder) return onCancelOrder(orderId)
@@ -469,6 +493,12 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
     if (onUpdateStatus) return onUpdateStatus(orderId, newStatus)
     onUpdateOrders(prev => prev.map(o => o.orderId === orderId ? { ...o, status: newStatus, isCanceled: newStatus === 'CANCELED' } : o))
     showToast && showToast(`Order ${orderId} → ${newStatus}`)
+  }
+
+  const handlePaymentStatusChange = (orderId, newPaymentStatus) => {
+    if (onUpdatePaymentStatus) return onUpdatePaymentStatus(orderId, newPaymentStatus)
+    onUpdateOrders(prev => prev.map(o => o.orderId === orderId ? { ...o, payment_status: newPaymentStatus, paymentStatus: newPaymentStatus, is_paid: newPaymentStatus === 'PAID', isPaid: newPaymentStatus === 'PAID' } : o))
+    showToast && showToast(`Order ${orderId} payment → ${newPaymentStatus}`)
   }
 
   const handleCreate = (newOrder) => {
@@ -532,7 +562,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           {statsCollapsed ? '▶ Show summary' : '▼ Hide summary'}
         </button>
         <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>
-          {statsCollapsed ? `${stats.total} orders • ${stats.delivered} delivered • ${peso(stats.revenue)} total • ${stats.borrowedOrders} borrowed (${stats.totalBorrowed} gals)` : 'Summary — click to hide and reduce clutter'}
+          {statsCollapsed ? `${stats.total} orders • ${stats.delivered} delivered • ${peso(stats.revenue)} total • ${stats.borrowedOrders} borrowed (${stats.totalBorrowed} gals) • ${stats.paidOrders} paid / ${stats.unpaidOrders} unpaid` : 'Summary — click to hide and reduce clutter'}
         </span>
         {!statsCollapsed && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--slate-400)' }}>Hidden by default • Audited</span>}
       </div>
@@ -557,6 +587,11 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
             <div className="stat-top"><span className="stat-label">Borrowed (audit)</span><span className="stat-icon">🤝</span></div>
             <div className="stat-value" style={{ color: stats.totalBorrowed > 0 ? '#92400e' : 'var(--slate-900)' }}>{stats.totalBorrowed} gals</div>
             <div className="stat-trend" style={{ color: '#92400e' }}>{stats.borrowedOrders} orders • monitored</div>
+          </div>
+          <div className="stat-card" style={{ border: '1px solid #fde68a', background: '#fffbeb' }}>
+            <div className="stat-top"><span className="stat-label">Payment (audit)</span><span className="stat-icon">💳</span></div>
+            <div className="stat-value" style={{ color: stats.unpaidOrders > 0 ? '#d97706' : '#059669' }}>{stats.paidOrders} paid</div>
+            <div className="stat-trend" style={{ color: stats.unpaidOrders > 0 ? '#92400e' : '#059669' }}>{stats.unpaidOrders} unpaid • {peso(stats.unpaidRevenue)} due</div>
           </div>
         </div>
       )}
@@ -588,9 +623,14 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           <option value="BORROWED">Borrowed only ({stats.borrowedOrders})</option>
           <option value="NOT_BORROWED">No borrowed</option>
         </select>
-        <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{filtered.length} of {orders.length} orders • {stats.totalBorrowed} gals borrowed</span>
-        {(search || statusFilter !== 'ALL' || scheduleFilter !== 'ALL' || paymentFilter !== 'ALL' || borrowedFilter !== 'ALL') && (
-          <button className="btn-xs" onClick={() => { setSearch(''); setStatusFilter('ALL'); setScheduleFilter('ALL'); setPaymentFilter('ALL'); setBorrowedFilter('ALL') }}>Clear</button>
+        <select value={paymentStatusFilter} onChange={e => setPaymentStatusFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: paymentStatusFilter !== 'ALL' ? '#fffbeb' : 'var(--white)', color: 'var(--slate-700)', borderColor: paymentStatusFilter !== 'ALL' ? '#fde68a' : 'var(--slate-200)' }}>
+          <option value="ALL">All paid</option>
+          <option value="PAID">Paid ({stats.paidOrders})</option>
+          <option value="UNPAID">Unpaid ({stats.unpaidOrders})</option>
+        </select>
+        <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{filtered.length} of {orders.length} orders • {stats.totalBorrowed} gals borrowed • {stats.unpaidOrders} unpaid</span>
+        {(search || statusFilter !== 'ALL' || scheduleFilter !== 'ALL' || paymentFilter !== 'ALL' || borrowedFilter !== 'ALL' || paymentStatusFilter !== 'ALL') && (
+          <button className="btn-xs" onClick={() => { setSearch(''); setStatusFilter('ALL'); setScheduleFilter('ALL'); setPaymentFilter('ALL'); setBorrowedFilter('ALL'); setPaymentStatusFilter('ALL') }}>Clear</button>
         )}
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
           <span style={{ width: 8, height: 8, borderRadius: 999, background: '#0ea5e9', display: 'inline-block' }}></span> DB synced
@@ -633,6 +673,27 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
         })}
         <span style={{ fontSize: 11, color: 'var(--slate-500)', marginLeft: 6, fontWeight: 600 }}>{stats.totalBorrowed} gals total borrowed • monitored in DB</span>
       </div>
+      <div style={{ display: 'flex', gap: 6, padding: '0 18px 10px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--slate-500)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Payment audit:</span>
+        {[
+          { id: 'ALL', label: 'All', count: orders.length },
+          { id: 'PAID', label: 'Paid', count: stats.paidOrders },
+          { id: 'UNPAID', label: 'Unpaid', count: stats.unpaidOrders },
+        ].map(f => {
+          const active = paymentStatusFilter === f.id
+          return (
+            <button key={f.id} onClick={() => setPaymentStatusFilter(f.id)} style={{
+              padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              border: `1px solid ${active ? (f.id === 'PAID' ? '#059669' : f.id === 'UNPAID' ? '#d97706' : 'var(--slate-900)') : 'var(--slate-200)'}`,
+              background: active ? (f.id === 'PAID' ? '#dcfce7' : f.id === 'UNPAID' ? '#fef3c7' : 'var(--slate-900)') : 'var(--white)',
+              color: active ? (f.id === 'PAID' ? '#065f46' : f.id === 'UNPAID' ? '#92400e' : 'var(--white)') : 'var(--slate-700)', cursor: 'pointer'
+            }}>
+              {f.label} <span style={{ opacity: 0.7, fontWeight: 600 }}>({f.count})</span>
+            </button>
+          )
+        })}
+        <span style={{ fontSize: 11, color: 'var(--slate-500)', marginLeft: 6, fontWeight: 600 }}>{peso(stats.unpaidRevenue)} unpaid • audited in DB</span>
+      </div>
 
       <div className="table-wrap" style={{ paddingTop: 0 }}>
         <table className="table">
@@ -643,6 +704,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
               <th>Customer</th>
               <th>Items</th>
               <th style={{ textAlign: 'center' }}>Borrowed</th>
+              <th style={{ textAlign: 'center' }}>Payment</th>
               <th style={{ textAlign: 'right' }}>Total</th>
               <th>Status</th>
               <th>Change status</th>
@@ -651,7 +713,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={9} style={{ textAlign: 'center', padding: 24, color: 'var(--slate-500)' }}>No orders found.</td></tr>
+              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 24, color: 'var(--slate-500)' }}>No orders found.</td></tr>
             ) : filtered.map(order => {
               const st = getOrderStatus(order)
               const canCancel = canCancelOrder(order)
@@ -690,6 +752,15 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                     {borrowed > 0 ? <span className="pill amber" style={{ fontSize: 12, fontWeight: 800, padding: '3px 8px', borderColor: '#fde68a' }}>🤝 {borrowed} gals</span> : <span className="pill slate" style={{ fontSize: 11 }}>— 0</span>}
                     {borrowed > 0 && <div style={{ fontSize: 10, color: '#92400e', fontWeight: 600, marginTop: 2 }}>Audit</div>}
                   </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+                      <PaymentPill statusId={getPaymentStatus(order).id} />
+                      <select value={getPaymentStatus(order).id} onChange={e => handlePaymentStatusChange(order.orderId, e.target.value)} style={{ padding: '4px 6px', borderRadius: 8, border: `1px solid ${getPaymentStatus(order).id==='PAID' ? '#a7f3d0' : '#fde68a'}`, fontSize: 11, fontWeight: 600, background: getPaymentStatus(order).id==='PAID' ? '#dcfce7' : '#fef3c7', color: getPaymentStatus(order).id==='PAID' ? '#065f46' : '#92400e' }}>
+                        <option value="PAID">Paid</option>
+                        <option value="UNPAID">Unpaid</option>
+                      </select>
+                    </div>
+                  </td>
                   <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--slate-900)' }}>{peso(order.total)}</td>
                   <td><StatusPill statusId={st.id} /></td>
                   <td>
@@ -721,7 +792,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           {infoCollapsed ? '▶ Show help' : '▼ Hide help'}
         </button>
         <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>
-          {infoCollapsed ? 'Help hidden — status & borrowed audit' : 'Help — how status & borrowed audit work'}
+          {infoCollapsed ? 'Help hidden — status, borrowed & payment audit' : 'Help — how status, borrowed & payment audit work'}
         </span>
         {!infoCollapsed && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--slate-400)' }}>Click to hide and reduce clutter</span>}
       </div>
@@ -748,13 +819,15 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
             </div>
           </div>
           <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: 14 }}>
-            <h3 style={{ margin: '0 0 8px', fontSize: 13, color: '#92400e' }}>🤝 Borrowed audit</h3>
+            <h3 style={{ margin: '0 0 8px', fontSize: 13, color: '#92400e' }}>🤝💳 Borrowed & Payment audit</h3>
             <div style={{ fontSize: 13, color: '#92400e', lineHeight: 1.6, display: 'grid', gap: 8 }}>
-              <div><code>orders.borrowed_count</code> is audited per order — sum of Borrow gallons. Use Borrowed filter above or Borrowed column to monitor. Trigger <code>order_items_borrowed_sync</code> keeps it accurate.</div>
+              <div><code>orders.borrowed_count</code> + <code>orders.payment_status</code> audited per order — Borrow sum + Paid/Unpaid. Use Borrowed / Payment columns & filters to monitor. Triggers keep them accurate.</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <span className="pill amber">Borrowed monitored</span>
-                <span className="pill green">DB synced</span>
+                <span className="pill green">Payment audited</span>
                 <span className="pill slate">{stats.totalBorrowed} gals total</span>
+                <span className="pill" style={{ background: '#dcfce7', color: '#065f46', borderColor: '#a7f3d0' }}>{stats.paidOrders} paid</span>
+                <span className="pill" style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}>{stats.unpaidOrders} unpaid</span>
               </div>
             </div>
           </div>
@@ -767,6 +840,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           onClose={() => setSelected(null)}
           onCancel={handleCancel}
           onUpdateStatus={handleStatusChange}
+          onUpdatePaymentStatus={handlePaymentStatusChange}
         />
       )}
       {showNew && (

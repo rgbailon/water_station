@@ -176,6 +176,8 @@ create table if not exists public.orders (
   -- audit: borrowed gallons in this order (sum of order_items where is_borrow=true)
   borrowed_count integer    not null default 0 check (borrowed_count >= 0),
   is_borrowed   boolean     not null default false,
+  -- payment audit: PAID / UNPAID (supabase column, syncs with is_paid)
+  payment_status text       not null default 'UNPAID' check (payment_status in ('PAID','UNPAID')),
   -- booleans (kept for compatibility + filtering; synced with status via trigger)
   is_canceled   boolean     not null default false,
   is_delivered  boolean     not null default false,
@@ -187,9 +189,10 @@ create index if not exists idx_orders_created on public.orders(created_at desc);
 create index if not exists idx_orders_customer on public.orders(customer_name);
 create index if not exists idx_orders_status on public.orders(status);
 create index if not exists idx_orders_borrowed on public.orders(is_borrowed) where is_borrowed = true;
+create index if not exists idx_orders_payment_status on public.orders(payment_status) where payment_status = 'UNPAID';
 
 -- trigger to keep status ↔ booleans in sync (status is source of truth, but legacy boolean writes also flip status)
--- also keeps is_borrowed in sync with borrowed_count for audit
+-- also keeps is_borrowed in sync with borrowed_count and payment_status ↔ is_paid for audit (handles OLD vs NEW correctly)
 create or replace function public.trg_orders_status_sync()
 returns trigger language plpgsql as $$
 begin
@@ -213,8 +216,19 @@ begin
       new.is_canceled := false;
     end if;
   end if;
-  -- audit: borrowed flag follows count
   new.is_borrowed := coalesce(new.borrowed_count,0) > 0;
+  -- payment: handle both payment_status and is_paid changes, with OLD comparison
+  if TG_OP = 'INSERT' then
+    new.is_paid := (new.payment_status = 'PAID');
+  else
+    if new.payment_status is distinct from old.payment_status then
+      new.is_paid := (new.payment_status = 'PAID');
+    elsif new.is_paid is distinct from old.is_paid then
+      new.payment_status := case when new.is_paid then 'PAID' else 'UNPAID' end;
+    else
+      new.is_paid := (new.payment_status = 'PAID');
+    end if;
+  end if;
   new.updated_at := now();
   return new;
 end $$;
@@ -330,6 +344,7 @@ select
   o.status,
   o.borrowed_count,
   o.is_borrowed,
+  o.payment_status,
   o.is_canceled,
   o.is_delivered,
   o.is_paid,

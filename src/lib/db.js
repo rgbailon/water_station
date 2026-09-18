@@ -208,6 +208,7 @@ export function orderFromRow(r, items = []) {
   const status = r.status || (r.is_canceled ? 'CANCELED' : r.is_delivered ? 'DELIVERED' : 'PENDING')
   const borrowed_count = r.borrowed_count != null ? Number(r.borrowed_count) : expanded.filter(it => it.is_borrow).reduce((s,it)=> s+it.quantity,0)
   const is_borrowed = r.is_borrowed != null ? !!r.is_borrowed : borrowed_count > 0
+  const payment_status = r.payment_status || (r.is_paid ? 'PAID' : 'UNPAID')
   return {
     orderId: r.order_id,
     date: new Date(r.created_at).getTime(),
@@ -226,10 +227,13 @@ export function orderFromRow(r, items = []) {
     borrowed_count,
     isBorrowed: is_borrowed,
     is_borrowed,
+    paymentStatus: payment_status,
+    payment_status,
+    isPaid: payment_status === 'PAID',
+    is_paid: payment_status === 'PAID',
     isCanceled: status === 'CANCELED' || !!r.is_canceled,
     is_canceled: status === 'CANCELED' || !!r.is_canceled,
     is_delivered: status === 'DELIVERED' || !!r.is_delivered,
-    is_paid: !!r.is_paid,
     is_archived: !!r.is_archived,
     items: expanded,
   }
@@ -239,6 +243,7 @@ export function orderToRow(o) {
   // compute borrowed from items if not explicitly provided (audit)
   const borrowedFromItems = Array.isArray(o.items) ? o.items.reduce((s,it)=> s + (it.is_borrow || it.product?.bottleSituation === 'BORROW' ? (it.quantity||0) : 0), 0) : 0
   const borrowed_count = o.borrowedCount ?? o.borrowed_count ?? borrowedFromItems
+  const payment_status = o.payment_status || o.paymentStatus || (o.isPaid || o.is_paid ? 'PAID' : 'UNPAID')
   return {
     order_id: o.orderId || o.order_id,
     customer_name: o.customerName || o.customer_name,
@@ -253,9 +258,10 @@ export function orderToRow(o) {
     status,
     borrowed_count,
     is_borrowed: borrowed_count > 0,
+    payment_status,
     is_canceled: status === 'CANCELED',
     is_delivered: status === 'DELIVERED',
-    is_paid: !!o.is_paid,
+    is_paid: payment_status === 'PAID',
     is_archived: !!o.is_archived,
     ...(o.date ? { created_at: new Date(o.date).toISOString() } : {}),
     ...(o.created_at ? { created_at: o.created_at } : {}),
@@ -416,16 +422,21 @@ export async function updateOrder(orderId, patch) {
   const sb = requireClient()
   const rowPatch = {}
   if ('status' in patch) rowPatch.status = patch.status
+  if ('payment_status' in patch) rowPatch.payment_status = patch.payment_status
+  if ('paymentStatus' in patch) rowPatch.payment_status = patch.paymentStatus
   if ('isCanceled' in patch) rowPatch.is_canceled = !!patch.isCanceled
   if ('is_canceled' in patch) rowPatch.is_canceled = !!patch.is_canceled
   if ('is_delivered' in patch) rowPatch.is_delivered = !!patch.is_delivered
   if ('is_paid' in patch) rowPatch.is_paid = !!patch.is_paid
+  if ('isPaid' in patch) rowPatch.is_paid = !!patch.isPaid
   if ('is_archived' in patch) rowPatch.is_archived = !!patch.is_archived
   if ('notes' in patch) rowPatch.notes = patch.notes
   if ('total' in patch) rowPatch.total = patch.total
   // keep status and booleans consistent when only booleans are patched
   if (rowPatch.is_canceled && !rowPatch.status) rowPatch.status = 'CANCELED'
   if (rowPatch.is_delivered && !rowPatch.status && !rowPatch.is_canceled) rowPatch.status = 'DELIVERED'
+  if ('payment_status' in rowPatch && rowPatch.payment_status === 'PAID') rowPatch.is_paid = true
+  if ('payment_status' in rowPatch && rowPatch.payment_status === 'UNPAID') rowPatch.is_paid = false
   const res = await sb.from('orders').update(rowPatch).eq('order_id', orderId).select('*, order_items(*, products(*))').single()
   const full = handleErr(res, 'updateOrder')
   return orderFromRow(full, full.order_items || [])
@@ -437,6 +448,10 @@ export async function cancelOrder(orderId) {
 
 export async function updateOrderStatus(orderId, status) {
   return updateOrder(orderId, { status })
+}
+
+export async function updatePaymentStatus(orderId, payment_status) {
+  return updateOrder(orderId, { payment_status })
 }
 
 export async function deleteOrder(orderId) {

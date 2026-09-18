@@ -279,10 +279,24 @@ export default function App() {
     } else showToast(`Order ${orderId} → ${newStatus}`)
   }
 
+  const handlePaymentStatusUpdate = async (orderId, newPaymentStatus) => {
+    setOrders(prev => {
+      const next = prev.map(o => o.orderId === orderId ? { ...o, payment_status: newPaymentStatus, paymentStatus: newPaymentStatus, is_paid: newPaymentStatus === 'PAID', isPaid: newPaymentStatus === 'PAID' } : o)
+      try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(next)) } catch {}
+      return next
+    })
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try { await DB.updatePaymentStatus(orderId, newPaymentStatus); showToast(`Order ${orderId} payment → ${newPaymentStatus} • Synced`) }
+      catch (e) { console.warn('[orders] updatePaymentStatus failed', e); showToast(`Order ${orderId} payment → ${newPaymentStatus} • Saved locally`) }
+      finally { setSyncing(false) }
+    } else showToast(`Order ${orderId} payment → ${newPaymentStatus}`)
+  }
+
   const handleOrderCreate = async (newOrder) => {
     let id = newOrder.orderId
     while (orders.some(o => o.orderId === id)) id = `WFR-${Math.floor(1000 + Math.random() * 9000)}`
-    const order = { ...newOrder, orderId: id, status: newOrder.status || 'PENDING' }
+    const order = { ...newOrder, orderId: id, status: newOrder.status || 'PENDING', payment_status: newOrder.payment_status || 'UNPAID' }
     setOrders(prev => {
       const next = [order, ...prev]
       try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(next)) } catch {}
@@ -441,7 +455,7 @@ export default function App() {
             </>
           )}
 
-          {activeTab==='orders' && <OrdersView orders={orders} onUpdateOrders={handleOrdersUpdate} onCancelOrder={handleOrderCancel} onCreateOrder={handleOrderCreate} onUpdateStatus={handleOrderStatusUpdate} showToast={showToast} dbStatus={dbStatus} />}
+          {activeTab==='orders' && <OrdersView orders={orders} onUpdateOrders={handleOrdersUpdate} onCancelOrder={handleOrderCancel} onCreateOrder={handleOrderCreate} onUpdateStatus={handleOrderStatusUpdate} onUpdatePaymentStatus={handlePaymentStatusUpdate} showToast={showToast} dbStatus={dbStatus} />}
           {activeTab==='products' && <ProductsView products={products} />}
           {activeTab==='inventory' && <InventoryView inventory={inventory} onUpdate={handleInventoryUpdate} dbStatus={dbStatus} />}
           {activeTab==='borrowed' && <HiramView records={hiramRecords} onUpdateRecords={setHiramRecords} />}

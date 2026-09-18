@@ -23,6 +23,11 @@ export const OrderStatus = {
   CANCELED: { id: 'CANCELED', label: 'Canceled' },
 }
 
+export const PaymentStatus = {
+  PAID: { id: 'PAID', label: 'Paid', color: '#059669', bg: '#dcfce7', border: '#a7f3d0' },
+  UNPAID: { id: 'UNPAID', label: 'Unpaid', color: '#d97706', bg: '#fef3c7', border: '#fde68a' },
+}
+
 // Product colors
 export const accentColors = {
   Aqua: { hex: '#26C6DA', argb: 0xFF26C6DA, signed: -14100902 }, // 4280158682 unsigned
@@ -362,6 +367,16 @@ export function canCancelOrder(order) {
 // Helper: list of statuses that allow manual transition (for UI dropdown)
 export const ORDER_STATUS_OPTIONS = Object.values(OrderStatus)
 
+// Payment status — audit: PAID / UNPAID stored in orders.payment_status (syncs with is_paid)
+export function getPaymentStatus(order) {
+  if (!order) return PaymentStatus.UNPAID
+  const raw = order.payment_status || order.paymentStatus || (order.isPaid || order.is_paid ? 'PAID' : 'UNPAID')
+  const key = String(raw).toUpperCase()
+  if (PaymentStatus[key]) return PaymentStatus[key]
+  return PaymentStatus.UNPAID
+}
+export const PAYMENT_STATUS_OPTIONS = Object.values(PaymentStatus)
+
 export function formatOrderDate(epochMillis) {
   const d = new Date(epochMillis)
   return d.toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
@@ -379,13 +394,14 @@ function calcTotals(items) {
   return { subtotal, deliveryFee, total }
 }
 
-function mkOrder({ orderId, date, status = 'PENDING', customerName, phone, address, items, payment = 'Cash on Delivery', schedule = 'Today', notes = '', isCanceled = false }) {
+function mkOrder({ orderId, date, status = 'PENDING', paymentStatus = 'UNPAID', customerName, phone, address, items, payment = 'Cash on Delivery', schedule = 'Today', notes = '', isCanceled = false }) {
   const ts = date ?? Date.now()
   const finalStatus = isCanceled ? 'CANCELED' : status
+  const finalPayment = paymentStatus
   const { subtotal, deliveryFee, total } = calcTotals(items)
   const expanded = items.map(it => ({ ...it, product: productById[it.productId] }))
   const borrowedCount = expanded.filter(it => it.product?.bottleSituation === 'BORROW').reduce((s,it)=> s+it.quantity,0)
-  return { orderId, date: ts, status: finalStatus, customerName, phone, address, items: expanded, subtotal, deliveryFee, total, payment, schedule, notes, isCanceled: finalStatus === 'CANCELED', borrowedCount, borrowed_count: borrowedCount, isBorrowed: borrowedCount>0, is_borrowed: borrowedCount>0 }
+  return { orderId, date: ts, status: finalStatus, payment_status: finalPayment, paymentStatus: finalPayment, isPaid: finalPayment==='PAID', is_paid: finalPayment==='PAID', customerName, phone, address, items: expanded, subtotal, deliveryFee, total, payment, schedule, notes, isCanceled: finalStatus === 'CANCELED', borrowedCount, borrowed_count: borrowedCount, isBorrowed: borrowedCount>0, is_borrowed: borrowedCount>0 }
 }
 
 // Sample orders — each has explicit database status (no timers)
@@ -396,6 +412,7 @@ export function generateSampleOrders() {
       orderId: 'WFR-4821',
       date: now - 25 * 60 * 1000,
       status: 'PENDING',
+      paymentStatus: 'UNPAID',
       customerName: 'Juan Dela Cruz',
       phone: '0912-345-6789',
       address: 'Brgy. Monbon, Irosin - Purok 3 near chapel',
@@ -408,6 +425,7 @@ export function generateSampleOrders() {
       orderId: 'WFR-7392',
       date: now - 2 * 60 * 60 * 1000,
       status: 'CONFIRMED',
+      paymentStatus: 'UNPAID',
       customerName: 'Maria Santos',
       phone: '0917-000-1122',
       address: 'Brgy. Patag, Irosin',
@@ -420,6 +438,7 @@ export function generateSampleOrders() {
       orderId: 'WFR-6105',
       date: now - 4 * 60 * 60 * 1000,
       status: 'GALLON_TO_GET',
+      paymentStatus: 'UNPAID',
       customerName: 'Ana Reyes',
       phone: '0905-123-4567',
       address: 'Brgy. San Isidro, Irosin - San Isidro Elementary',
@@ -432,6 +451,7 @@ export function generateSampleOrders() {
       orderId: 'WFR-2847',
       date: now - 8 * 60 * 60 * 1000,
       status: 'OUT_FOR_DELIVERY',
+      paymentStatus: 'UNPAID',
       customerName: 'Kap. Reyes',
       phone: '0917-***-4321',
       address: 'Brgy. Patag - Barangay Hall',
@@ -444,6 +464,7 @@ export function generateSampleOrders() {
       orderId: 'WFR-9153',
       date: now - 15 * 60 * 60 * 1000,
       status: 'DELIVERED',
+      paymentStatus: 'PAID',
       customerName: 'Mina Store',
       phone: '0920-***-9876',
       address: 'Brgy. Bagsangan - National Road',
@@ -456,6 +477,7 @@ export function generateSampleOrders() {
       orderId: 'WFR-5033',
       date: now - 2 * 60 * 60 * 1000,
       status: 'CANCELED',
+      paymentStatus: 'UNPAID',
       customerName: 'Lito Manalo',
       phone: '0930-111-2222',
       address: 'Brgy. Carriedo, Irosin',
@@ -470,6 +492,7 @@ export function generateSampleOrders() {
       orderId: 'WFR-1234',
       date: new Date('2026-09-11T09:30:00+08:00').getTime(),
       status: 'DELIVERED',
+      payment_status: 'PAID', paymentStatus: 'PAID', isPaid: true, is_paid: true,
       customerName: 'Aling Nena Sari-Sari',
       phone: '0905-***-6789',
       address: 'Brgy. San Isidro - near market',
@@ -487,6 +510,7 @@ export function generateSampleOrders() {
       orderId: 'WFR-8761',
       date: new Date('2026-09-10T14:00:00+08:00').getTime(),
       status: 'DELIVERED',
+      payment_status: 'PAID', paymentStatus: 'PAID', isPaid: true, is_paid: true,
       customerName: 'Irosin NHS Canteen',
       phone: '0930-***-1111',
       address: 'San Julian, Irosin - Irosin NHS',
