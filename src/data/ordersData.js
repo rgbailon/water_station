@@ -340,6 +340,26 @@ sampleProducts.forEach(p => {
 // Helper map for fast lookup
 export const productById = Object.fromEntries(sampleProducts.map(p => [p.id, p]))
 
+// Borrowed container pricing: total amount of borrowed will be price of container if not paid (UNPAID)
+export const CONTAINER_PRICE_BY_BORROW_ID = { 13: 150, 14: 155, 15: 160, 16: 165, 17: 170, 18: 180 }
+export function getContainerPrice(product) {
+  if (!product) return 0
+  return CONTAINER_PRICE_BY_BORROW_ID[product.id] ?? (product.price + 125)
+}
+export function getEffectivePrice(product, paymentStatus = 'PAID') {
+  if (!product) return 0
+  if (product.bottleSituation === 'BORROW' && String(paymentStatus).toUpperCase() === 'UNPAID') {
+    return getContainerPrice(product)
+  }
+  return product.price
+}
+export function calcBorrowedContainerSubtotal(items, paymentStatus = 'PAID') {
+  return items.reduce((s, it) => {
+    const p = it.product || productById[it.productId]
+    return s + getEffectivePrice(p, paymentStatus) * (it.quantity || 0)
+  }, 0)
+}
+
 // 4. Order status — now database-driven (no timers)
 // `order.status` is the source of truth (e.g. PENDING, CONFIRMED, GALLON_TO_GET, OUT_FOR_DELIVERY, DELIVERED, CANCELED).
 // Legacy `isCanceled` / `is_canceled` boolean is still honored for backward compat.
@@ -387,18 +407,38 @@ export function formatOrderDateShort(epochMillis) {
 }
 
 // 5. Sample orders
-function calcTotals(items) {
-  const subtotal = items.reduce((s, it) => s + productById[it.productId].price * it.quantity, 0)
+function calcTotals(items, paymentStatus = 'PAID') {
+  const subtotal = items.reduce((s, it) => s + getEffectivePrice(productById[it.productId], paymentStatus) * it.quantity, 0)
   const deliveryFee = subtotal >= ORDER_CONSTANTS.MIN_DELIVERY_FREE ? 0 : ORDER_CONSTANTS.DELIVERY_FEE_FLAT
   const total = subtotal + deliveryFee
   return { subtotal, deliveryFee, total }
+}
+export function recomputeOrderTotals(order, newPaymentStatus) {
+  const ps = newPaymentStatus || getPaymentStatus(order).id
+  const items = order.items || []
+  const subtotal = items.reduce((s, it) => {
+    const p = it.product || productById[it.productId]
+    return s + getEffectivePrice(p, ps) * (it.quantity || 0)
+  }, 0)
+  const deliveryFee = subtotal >= ORDER_CONSTANTS.MIN_DELIVERY_FREE ? 0 : ORDER_CONSTANTS.DELIVERY_FEE_FLAT
+  const total = subtotal + deliveryFee
+  return { subtotal, deliveryFee, total }
+}
+export function getOrderDisplayTotal(order) {
+  const ps = getPaymentStatus(order).id
+  const hasBorrow = (order.borrowedCount ?? order.borrowed_count ?? 0) > 0 || (order.items || []).some(it => (it.product || productById[it.productId])?.bottleSituation === 'BORROW')
+  if (!hasBorrow || ps === 'PAID') return order.total
+  return recomputeOrderTotals(order, ps).total
+}
+export function getOrderDisplaySubtotal(order) {
+  return recomputeOrderTotals(order, getPaymentStatus(order).id).subtotal
 }
 
 function mkOrder({ orderId, date, status = 'PENDING', paymentStatus = 'UNPAID', customerName, phone, address, items, payment = 'Cash on Delivery', schedule = 'Today', notes = '', isCanceled = false }) {
   const ts = date ?? Date.now()
   const finalStatus = isCanceled ? 'CANCELED' : status
   const finalPayment = paymentStatus
-  const { subtotal, deliveryFee, total } = calcTotals(items)
+  const { subtotal, deliveryFee, total } = calcTotals(items, finalPayment)
   const expanded = items.map(it => ({ ...it, product: productById[it.productId] }))
   const borrowedCount = expanded.filter(it => it.product?.bottleSituation === 'BORROW').reduce((s,it)=> s+it.quantity,0)
   return { orderId, date: ts, status: finalStatus, payment_status: finalPayment, paymentStatus: finalPayment, isPaid: finalPayment==='PAID', is_paid: finalPayment==='PAID', customerName, phone, address, items: expanded, subtotal, deliveryFee, total, payment, schedule, notes, isCanceled: finalStatus === 'CANCELED', borrowedCount, borrowed_count: borrowedCount, isBorrowed: borrowedCount>0, is_borrowed: borrowedCount>0 }

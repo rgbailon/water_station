@@ -1,5 +1,5 @@
 import { peso, nowPHString, formatPHLong } from '../utils/dateUtils'
-import { getOrderStatus } from '../data/ordersData'
+import { getOrderStatus, getPaymentStatus, getOrderDisplayTotal } from '../data/ordersData'
 
 function BlankRows({ count, cols }) {
   return Array.from({ length: count }).map((_, i) => (
@@ -20,10 +20,14 @@ export default function DeliveryPrintSheet({ orders = [], onClose, singleOrder =
   const isSingle = Boolean(singleOrder)
 
   const totalGallons = list.reduce((s, o) => s + o.items.reduce((a, it) => a + it.quantity, 0), 0)
-  const totalAmount = list.reduce((s, o) => s + (o.total || 0), 0)
+  const totalAmount = list.reduce((s, o) => s + getOrderDisplayTotal(o), 0)
   const roundCount = list.reduce((s, o) => s + o.items.filter(it => (it.product || {}).container === 'Round').reduce((a, it) => a + it.quantity, 0), 0)
   const slimCount = list.reduce((s, o) => s + o.items.filter(it => (it.product || {}).container === 'Slim').reduce((a, it) => a + it.quantity, 0), 0)
   const gcashNote = list.filter(o => o.payment !== 'Cash on Delivery').length
+  const paidOrders = list.filter(o => getPaymentStatus(o).id === 'PAID').length
+  const unpaidOrders = list.filter(o => getPaymentStatus(o).id === 'UNPAID').length
+  const paidAmount = list.filter(o => getPaymentStatus(o).id === 'PAID').reduce((s, o) => s + getOrderDisplayTotal(o), 0)
+  const unpaidAmount = list.filter(o => getPaymentStatus(o).id === 'UNPAID').reduce((s, o) => s + getOrderDisplayTotal(o), 0)
 
   const content = (
     <div className="print-sheet" id="print-delivery-sheet">
@@ -105,10 +109,11 @@ export default function DeliveryPrintSheet({ orders = [], onClose, singleOrder =
                         </td>
                         <td style={{ fontSize: '7.5pt' }}>
                           <div>{itemsText}</div>
-                          <div style={{ marginTop: 3, color: '#0c4a6e', fontWeight: 700 }}>{o.items.reduce((s, it) => s + it.quantity, 0)} gallon(s) • {peso(o.total)}</div>
+                          <div style={{ marginTop: 3, color: '#0c4a6e', fontWeight: 700 }}>{o.items.reduce((s, it) => s + it.quantity, 0)} gallon(s) • {peso(getOrderDisplayTotal(o))}{getOrderDisplayTotal(o)!==o.total && <span style={{ fontSize:'6pt', color:'#92400e' }}> (was {peso(o.total)})</span>}</div>
                         </td>
                         <td style={{ textAlign: 'center', fontSize: '7.5pt' }}>
-                          <div style={{ fontWeight: 800 }}>{peso(o.total)}</div>
+                          <div style={{ fontWeight: 800 }}>{peso(getOrderDisplayTotal(o))}{getOrderDisplayTotal(o)!==o.total && <span style={{ fontSize:'6pt', color:'#92400e' }}> container</span>}</div>
+                          <div style={{ fontSize: '6.5pt', color: getPaymentStatus(o).id==='PAID'?'#065f46':'#92400e', fontWeight: 700, background: getPaymentStatus(o).id==='PAID'?'#dcfce7':'#fef3c7', border: `1px solid ${getPaymentStatus(o).id==='PAID'?'#a7f3d0':'#fde68a'}`, borderRadius: 3, padding: '0 3px', display: 'inline-block' }}>{getPaymentStatus(o).label}</div>
                           <div style={{ fontSize: '6.5pt', color: '#065f46', fontWeight: 600 }}>{o.payment}</div>
                           <div style={{ fontSize: '6.5pt', color: '#64748b' }}>{o.schedule} • {getOrderStatus(o).label}</div>
                         </td>
@@ -123,6 +128,50 @@ export default function DeliveryPrintSheet({ orders = [], onClose, singleOrder =
             </div>
 
             <div className="print-section">
+              <h2>💳 Payment Checklist <small>— check PAID or UNPAID per order, audit accurately</small></h2>
+              <table className="print-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '28px' }}>#</th>
+                    <th style={{ width: '22%' }}>Order / Customer</th>
+                    <th style={{ width: '12%' }}>Amount</th>
+                    <th style={{ width: '14%' }}>DB Status</th>
+                    <th style={{ width: '48px' }}>☐ Paid</th>
+                    <th style={{ width: '48px' }}>☐ Unpaid</th>
+                    <th>Cash Collected / Remarks</th>
+                    <th style={{ width: '70px' }}>Signature</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((o, idx) => {
+                    const ps = getPaymentStatus(o).id
+                    const dispTotal = getOrderDisplayTotal(o)
+                    return (
+                      <tr key={o.orderId}>
+                        <td className="num">{idx + 1}</td>
+                        <td><div style={{ fontWeight: 700, fontSize: '7.5pt' }}>{o.orderId}</div><div style={{ fontSize: '7pt' }}>{o.customerName}</div><div style={{ fontSize: '6.5pt', color: '#64748b' }}>{o.phone || '—'}</div></td>
+                        <td style={{ textAlign: 'center', fontWeight: 800, fontSize: '7.5pt' }}>{peso(dispTotal)}{dispTotal!==o.total && <div style={{ fontSize:'6pt', color:'#92400e' }}>container</div>}</td>
+                        <td style={{ textAlign: 'center' }}><span style={{ fontSize: '7pt', background: ps==='PAID'?'#dcfce7':'#fef3c7', border: `1px solid ${ps==='PAID'?'#a7f3d0':'#fde68a'}`, borderRadius: 3, padding: '0 4px', fontWeight: 700, color: ps==='PAID'?'#065f46':'#92400e' }}>{ps}</span></td>
+                        <td className="check" style={{ textAlign: 'center', fontSize: '10pt' }}>☐</td>
+                        <td className="check" style={{ textAlign: 'center', fontSize: '10pt' }}>☐</td>
+                        <td style={{ fontSize: '7pt' }}>&nbsp;</td>
+                        <td>&nbsp;</td>
+                      </tr>
+                    )
+                  })}
+                  {list.length < 6 && <BlankRows count={Math.max(2, 6 - list.length)} cols={8} />}
+                </tbody>
+              </table>
+              <div style={{ marginTop: 6, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '6px 8px', fontSize: '7.5pt', color: '#92400e', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <span><b>Paid:</b> {paidOrders} orders • {peso(paidAmount)}</span>
+                <span><b>Unpaid:</b> {unpaidOrders} orders • {peso(unpaidAmount)}</span>
+                <span><b>Total:</b> {list.length} orders • {peso(totalAmount)}</span>
+                <span style={{ marginLeft: 'auto', fontStyle: 'italic' }}>Rider must check one per order — audited in Supabase `orders.payment_status`</span>
+              </div>
+              <div style={{ marginTop: 4, fontSize: '6.5pt', color: '#64748b', fontStyle: 'italic' }}>Instructions: For each delivery, check ☐ Paid if cash/GCash received, or ☐ Unpaid if to collect later. Write cash amount and get signature. Return sheet for audit.</div>
+            </div>
+
+            <div className="print-section">
               <div className="print-summary">
                 <div className="print-box">
                   <h3>🔢 Summary for delivery</h3>
@@ -131,8 +180,10 @@ export default function DeliveryPrintSheet({ orders = [], onClose, singleOrder =
                     <div className="box-row"><span>Round gallons</span><b>{roundCount}</b></div>
                     <div className="box-row"><span>Slim gallons</span><b>{slimCount}</b></div>
                     <div className="box-row"><span>Total gallons</span><b>{totalGallons}</b></div>
-                    <div className="box-row"><span>Cash to collect</span><b>{peso(totalAmount)}</b></div>
-                    <div className="box-row"><span>Other payment</span><b>{gcashNote}</b></div>
+                    <div className="box-row"><span>Paid (DB)</span><b style={{ color: '#065f46' }}>{peso(paidAmount)} ({paidOrders})</b></div>
+                    <div className="box-row"><span>Unpaid to collect</span><b style={{ color: '#92400e' }}>{peso(unpaidAmount)} ({unpaidOrders})</b></div>
+                    <div className="box-row"><span>Total amount</span><b>{peso(totalAmount)}</b></div>
+                    <div className="box-row"><span>Other payment (GCash/Maya)</span><b>{gcashNote}</b></div>
                     <div style={{ fontSize: '7pt', color: '#64748b', marginTop: 4 }}>Double-check seals are intact before loading. Bring change for cash payments.</div>
                   </div>
                 </div>

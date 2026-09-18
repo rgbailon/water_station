@@ -9,6 +9,10 @@ import {
   scheduleOptions,
   getOrderStatus,
   getPaymentStatus,
+  getEffectivePrice,
+  recomputeOrderTotals,
+  getOrderDisplayTotal,
+  getOrderDisplaySubtotal,
   canCancelOrder,
   formatOrderDate,
   formatOrderDateShort,
@@ -75,6 +79,7 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus, onUpdatePa
   const paymentStatus = getPaymentStatus(order)
   const canCancel = canCancelOrder(order)
   const borrowed = order.borrowedCount ?? order.borrowed_count ?? order.items.filter(it => (it.is_borrow || it.product?.bottleSituation === 'BORROW')).reduce((s,it)=>s+(it.quantity||0),0)
+  const display = recomputeOrderTotals(order, paymentStatus.id)
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 760, maxHeight: '92vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
@@ -125,11 +130,11 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus, onUpdatePa
               <div style={{ display: 'grid', gap: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Order number</span><b style={{ fontFamily: 'var(--mono)', color: 'var(--slate-900)' }}>{order.orderId}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Date & time</span><span style={{ fontSize: 12 }}>{formatOrderDate(order.date)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Subtotal</span><b>{peso(order.subtotal)}</b></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Delivery fee</span><b>{peso(order.deliveryFee)} {order.deliveryFee === 0 && <span style={{ fontWeight: 600, color: '#059669' }}>Free</span>}</b></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: borrowed > 0 ? '#fffbeb' : 'var(--white)', border: borrowed > 0 ? '1px solid #fde68a' : '1px solid var(--slate-200)', borderRadius: 8, padding: '6px 8px' }}><span style={{ color: borrowed > 0 ? '#92400e' : 'var(--slate-500)', fontWeight: 700 }}>🤝 Borrowed (audit)</span><b style={{ color: borrowed > 0 ? '#92400e' : 'var(--slate-900)' }}>{borrowed} gals {borrowed > 0 ? <span className="pill amber" style={{ fontSize: 10, marginLeft: 6 }}>Monitored</span> : <span style={{ fontWeight: 500, color: 'var(--slate-400)' }}>— none</span>}</b></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: paymentStatus.id === 'PAID' ? '#dcfce7' : '#fef3c7', border: `1px solid ${paymentStatus.id === 'PAID' ? '#a7f3d0' : '#fde68a'}`, borderRadius: 8, padding: '6px 8px' }}><span style={{ color: paymentStatus.id === 'PAID' ? '#065f46' : '#92400e', fontWeight: 700 }}>💳 Payment status</span><b style={{ color: paymentStatus.id === 'PAID' ? '#065f46' : '#92400e', display: 'flex', gap: 6, alignItems: 'center' }}><PaymentPill statusId={paymentStatus.id} /> {paymentStatus.id === 'PAID' ? 'Audit: paid' : 'Audit: unpaid'}</b></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '8px 10px', background: '#0f172a', color: 'white', borderRadius: 8 }}><span>Total amount</span><b>{peso(order.total)}</b></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Subtotal</span><b>{peso(display.subtotal)} {borrowed>0 && paymentStatus.id==='UNPAID' && display.subtotal!==order.subtotal && <span style={{ fontSize:10, color:'#92400e' }}>(water {peso(order.subtotal)})</span>}</b></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Delivery fee</span><b>{peso(display.deliveryFee)} {display.deliveryFee === 0 && <span style={{ fontWeight: 600, color: '#059669' }}>Free</span>}</b></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: borrowed > 0 ? '#fffbeb' : 'var(--white)', border: borrowed > 0 ? '1px solid #fde68a' : '1px solid var(--slate-200)', borderRadius: 8, padding: '6px 8px' }}><span style={{ color: borrowed > 0 ? '#92400e' : 'var(--slate-500)', fontWeight: 700 }}>🤝 Borrowed (audit)</span><b style={{ color: borrowed > 0 ? '#92400e' : 'var(--slate-900)' }}>{borrowed} gals {borrowed > 0 ? <span className="pill amber" style={{ fontSize: 10, marginLeft: 6 }}>{paymentStatus.id==='UNPAID' ? `container ${peso(display.subtotal)}` : 'water price'}</span> : <span style={{ fontWeight: 500, color: 'var(--slate-400)' }}>— none</span>}</b></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: paymentStatus.id === 'PAID' ? '#dcfce7' : '#fef3c7', border: `1px solid ${paymentStatus.id === 'PAID' ? '#a7f3d0' : '#fde68a'}`, borderRadius: 8, padding: '6px 8px' }}><span style={{ color: paymentStatus.id === 'PAID' ? '#065f46' : '#92400e', fontWeight: 700 }}>💳 Payment status</span><b style={{ color: paymentStatus.id === 'PAID' ? '#065f46' : '#92400e', display: 'flex', gap: 6, alignItems: 'center' }}><PaymentPill statusId={paymentStatus.id} /> {paymentStatus.id === 'PAID' ? 'Audit: paid — water price' : 'Audit: unpaid — container price'}</b></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '8px 10px', background: '#0f172a', color: 'white', borderRadius: 8 }}><span>Total amount {borrowed>0 && paymentStatus.id==='UNPAID' && '(container price)'}</span><b>{peso(display.total)} {borrowed>0 && paymentStatus.id==='UNPAID' && display.total!==order.total && <span style={{ fontSize:10, fontWeight:600, color:'#fde68a' }}>(was {peso(order.total)})</span>}</b></div>
                 <div style={{ fontSize: 11, color: 'var(--slate-500)', lineHeight: 1.5, background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
                   Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above. Borrowed audited in <code>orders.borrowed_count</code> • Payment audited in <code>orders.payment_status</code>.
                 </div>
@@ -174,9 +179,16 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus, onUpdatePa
                         <td><span className="pill slate" style={{ padding: '2px 6px', fontSize: 11 }}>{p.typeLabel || p.type}</span></td>
                         <td><span className="pill blue" style={{ padding: '2px 6px', fontSize: 11 }}>{p.bottleLabel || p.bottleSituation}</span></td>
                         <td>{p.container}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{peso(p.price)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                          {(() => {
+                            const eff = getEffectivePrice(p, paymentStatus.id)
+                            return eff !== p.price ? (
+                              <span><span style={{ textDecoration: 'line-through', color: 'var(--slate-400)', fontSize: 11 }}>{peso(p.price)}</span> <span style={{ color: '#92400e' }}>{peso(eff)}</span> <span className="pill amber" style={{ fontSize: 10, marginLeft: 4 }}>container</span></span>
+                            ) : peso(p.price)
+                          })()}
+                        </td>
                         <td style={{ textAlign: 'center' }}><b style={{ background: 'var(--slate-900)', color: 'var(--white)', padding: '2px 8px', borderRadius: 999, fontSize: 12 }}>{it.quantity}</b></td>
-                        <td style={{ textAlign: 'right', fontWeight: 800 }}>{peso(p.price * it.quantity)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 800 }}>{peso(getEffectivePrice(p, paymentStatus.id) * it.quantity)}</td>
                       </tr>
                     )
                   })}
@@ -184,7 +196,7 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus, onUpdatePa
               </table>
             </div>
             <div style={{ padding: '10px 12px', background: '#f8fafc', borderTop: '1px solid var(--slate-200)', display: 'flex', justifyContent: 'flex-end', fontSize: 13 }}>
-              <b style={{ color: 'var(--slate-900)' }}>Subtotal {peso(order.subtotal)} + Delivery {peso(order.deliveryFee)} = {peso(order.total)}</b>
+              <b style={{ color: 'var(--slate-900)' }}>Subtotal {peso(display.subtotal)} + Delivery {peso(display.deliveryFee)} = {peso(display.total)} {borrowed>0 && paymentStatus.id==='UNPAID' && <span style={{ fontWeight:600, color:'#92400e', fontSize:11 }}>(container price)</span>}</b>
             </div>
           </div>
         </div>
@@ -223,10 +235,12 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
     return true
   }) : []
 
-  const subtotal = selectedIds.reduce((s, id) => s + productById[id].price * qtyMap[id], 0)
+  const subtotal = selectedIds.reduce((s, id) => s + getEffectivePrice(productById[id], 'UNPAID') * qtyMap[id], 0)
   const deliveryFee = subtotal >= ORDER_CONSTANTS.MIN_DELIVERY_FREE ? 0 : ORDER_CONSTANTS.DELIVERY_FEE_FLAT
   const total = subtotal + deliveryFee
   const borrowedCount = selectedIds.reduce((s, id) => s + (productById[id]?.bottleSituation === 'BORROW' ? qtyMap[id] : 0), 0)
+  const borrowedContainerTotal = selectedIds.filter(id => productById[id]?.bottleSituation === 'BORROW').reduce((s, id) => s + getEffectivePrice(productById[id], 'UNPAID') * qtyMap[id], 0)
+  const waterOnlySubtotal = selectedIds.reduce((s, id) => s + productById[id].price * qtyMap[id], 0)
 
   const inc = (id) => {
     const prod = productById[id]
@@ -394,11 +408,12 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12 }}>
             <div style={{ display: 'grid', gap: 4, fontSize: 13 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--slate-500)' }}>Subtotal ({selectedIds.reduce((s, id) => s + qtyMap[id], 0)} items)</span><b>{peso(subtotal)}</b></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--slate-500)' }}>Subtotal ({selectedIds.reduce((s, id) => s + qtyMap[id], 0)} items){borrowedCount>0 && <span style={{ fontSize: 10, color: '#92400e', marginLeft: 6 }}>(container price if unpaid)</span>}</span><b>{peso(subtotal)}</b></div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--slate-500)' }}>Delivery fee</span><b style={{ color: deliveryFee === 0 ? '#059669' : 'var(--slate-900)' }}>{peso(deliveryFee)} {deliveryFee === 0 ? 'Free' : ''}</b></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: borrowedCount > 0 ? '#fffbeb' : 'transparent', border: borrowedCount > 0 ? '1px solid #fde68a' : 'none', borderRadius: 6, padding: borrowedCount > 0 ? '4px 6px' : 0 }}><span style={{ color: borrowedCount > 0 ? '#92400e' : 'var(--slate-500)', fontWeight: 700 }}>🤝 Borrowed (audit)</span><b style={{ color: borrowedCount > 0 ? '#92400e' : 'var(--slate-900)' }}>{borrowedCount} gals {borrowedCount > 0 && <span className="pill amber" style={{ fontSize: 10, marginLeft: 4 }}>Monitored</span>}</b></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800 }}><span>Total</span><span style={{ color: 'var(--slate-900)' }}>{peso(total)}</span></div>
-              <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above • Borrowed audited in <code>orders.borrowed_count</code></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: borrowedCount > 0 ? '#fffbeb' : 'transparent', border: borrowedCount > 0 ? '1px solid #fde68a' : 'none', borderRadius: 6, padding: borrowedCount > 0 ? '4px 6px' : 0 }}><span style={{ color: borrowedCount > 0 ? '#92400e' : 'var(--slate-500)', fontWeight: 700 }}>🤝 Borrowed (audit)</span><b style={{ color: borrowedCount > 0 ? '#92400e' : 'var(--slate-900)' }}>{borrowedCount} gals {borrowedCount > 0 && <span className="pill amber" style={{ fontSize: 10, marginLeft: 4 }}>{peso(borrowedContainerTotal)} at container price (UNPAID)</span>}</b></div>
+              {borrowedCount>0 && <div style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '4px 6px' }}>💡 Borrowed total = container price if <b>UNPAID</b> ({peso(borrowedContainerTotal)}), water price if <b>PAID</b> ({peso(waterOnlySubtotal)}). Total shown is <b>UNPAID</b> container price.</div>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800 }}><span>Total (UNPAID borrowed at container price)</span><span style={{ color: 'var(--slate-900)' }}>{peso(total)}</span></div>
+              <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above • Borrowed: container price if UNPAID, water price if PAID • audited in <code>orders.borrowed_count</code></div>
             </div>
             <div style={{ display: 'grid', gap: 8 }}>
               <button className="btn-save" disabled={!isValid || !hasSelection} style={{ opacity: !isValid || !hasSelection ? 0.5 : 1, padding: '12px 18px', fontSize: 14 }} onClick={handleCreate}>
@@ -452,13 +467,13 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
     })
     const active = (byStatus.PENDING || 0) + (byStatus.CONFIRMED || 0) + (byStatus.GALLON_TO_GET || 0) + (byStatus.OUT_FOR_DELIVERY || 0)
     const delivered = byStatus.DELIVERED || 0
-    const revenue = orders.filter(o => getOrderStatus(o).id !== 'CANCELED').reduce((s, o) => s + o.total, 0)
+    const revenue = orders.filter(o => getOrderStatus(o).id !== 'CANCELED').reduce((s, o) => s + getOrderDisplayTotal(o), 0)
     const avg = total - canceled > 0 ? revenue / (total - canceled) : 0
     const borrowedOrders = orders.filter(o => (o.borrowedCount ?? o.borrowed_count ?? 0) > 0).length
     const totalBorrowed = orders.reduce((s, o) => s + (o.borrowedCount ?? o.borrowed_count ?? 0), 0)
     const paidOrders = orders.filter(o => getPaymentStatus(o).id === 'PAID').length
     const unpaidOrders = orders.filter(o => getPaymentStatus(o).id === 'UNPAID').length
-    const unpaidRevenue = orders.filter(o => getPaymentStatus(o).id === 'UNPAID' && getOrderStatus(o).id !== 'CANCELED').reduce((s, o) => s + o.total, 0)
+    const unpaidRevenue = orders.filter(o => getPaymentStatus(o).id === 'UNPAID' && getOrderStatus(o).id !== 'CANCELED').reduce((s, o) => s + getOrderDisplayTotal(o), 0)
     return { total, canceled, active, delivered, revenue, avg, byStatus, borrowedOrders, totalBorrowed, paidOrders, unpaidOrders, unpaidRevenue }
   }, [orders])
 
@@ -761,7 +776,11 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                       </select>
                     </div>
                   </td>
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--slate-900)' }}>{peso(order.total)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--slate-900)' }}>
+                    <div>{peso(getOrderDisplayTotal(order))}</div>
+                    {(order.borrowedCount ?? order.borrowed_count ?? 0) > 0 && getPaymentStatus(order).id === 'UNPAID' && getOrderDisplayTotal(order) !== order.total && <div style={{ fontSize: 10, color: '#92400e', fontWeight: 600 }}>container price</div>}
+                    {(order.borrowedCount ?? 0) > 0 && getPaymentStatus(order).id === 'UNPAID' && <div style={{ fontSize: 10, color: '#92400e' }}>borrowed {order.borrowedCount ?? order.borrowed_count} gals</div>}
+                  </td>
                   <td><StatusPill statusId={st.id} /></td>
                   <td>
                     <select value={st.id} onChange={e => handleStatusChange(order.orderId, e.target.value)} style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 600, background: 'var(--white)' }}>

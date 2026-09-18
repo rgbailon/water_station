@@ -10,9 +10,10 @@ import ExpensesView from './components/ExpensesView'
 import ReportsView from './components/ReportsView'
 import DailyPrintSheet from './components/DailyPrintSheet'
 import { initialEvents, inventoryItems as initialInventory, hiramRecords as initialHiram, expensesList as initialExpenses } from './data/mockData'
-import { defaultSampleOrders, ORDER_STORE_SPEC, sampleProducts } from './data/ordersData'
+import { defaultSampleOrders, ORDER_STORE_SPEC, sampleProducts, recomputeOrderTotals } from './data/ordersData'
 import DashboardView from './components/DashboardView'
 import OrdersView from './components/OrdersView'
+import MessagesView from './components/MessagesView'
 import ProductsView from './components/ProductsView'
 import { addMonths, subMonths, formatMonthYear, formatISO, parseDate, getEventsForDate, peso } from './utils/dateUtils'
 import { isSupabaseConfigured, getSupabaseConfig } from './lib/supabaseClient'
@@ -28,6 +29,7 @@ export default function App() {
   const [hiramRecords, setHiramRecords] = useState(initialHiram)
   const [expenses, setExpenses] = useState(initialExpenses)
   const [products, setProducts] = useState(sampleProducts)
+  const [messages, setMessages] = useState([])
   const [modalDate, setModalDate] = useState(null)
   const [editingEvent, setEditingEvent] = useState(null)
   const [filters, setFilters] = useState({ sale: true, delivery: true, expense: true, hiram: true, maintenance: true })
@@ -81,9 +83,10 @@ export default function App() {
       DB.fetchHiram().catch(() => null),
       DB.fetchExpenses().catch(() => null),
       DB.fetchOrders().catch(() => null),
+      DB.fetchMessages().catch(() => null),
     ]).then(results => {
       if (cancelled) return
-      const [prodR, invR, evR, hiramR, expR, ordR] = results
+      const [prodR, invR, evR, hiramR, expR, ordR, msgR] = results
       let ok = 0, fail = 0
       if (prodR.status === 'fulfilled' && Array.isArray(prodR.value) && prodR.value.length) { setProducts(prodR.value); ok++ } else fail++
       if (invR.status === 'fulfilled' && Array.isArray(invR.value) && invR.value.length) { setInventory(invR.value); ok++ } else fail++
@@ -95,6 +98,7 @@ export default function App() {
         try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(ordR.value)) } catch {}
         ok++
       } else fail++
+      if (msgR.status === 'fulfilled' && Array.isArray(msgR.value)) { setMessages(msgR.value); ok++ } else fail++
 
       hasSynced.current = true
       if (ok > 0 && fail === 0) {
@@ -126,6 +130,11 @@ export default function App() {
       }))
       unsubs.push(DB.subscribeTable('orders', () => {
         DB.fetchOrders().then(rows => { if (rows?.length) setOrders(rows) }).catch(()=>{})
+      }))
+      unsubs.push(DB.subscribeTable('messages', payload => {
+        if (payload.eventType === 'INSERT') setMessages(prev => [DB.messageFromRow(payload.new), ...prev.filter(m => String(m.id) !== String(payload.new.id))])
+        if (payload.eventType === 'UPDATE') setMessages(prev => prev.map(m => String(m.id) === String(payload.new.id) ? DB.messageFromRow(payload.new) : m))
+        if (payload.eventType === 'DELETE') setMessages(prev => prev.filter(m => String(m.id) !== String(payload.old.id)))
       }))
     } catch {}
     return () => { cancelled = true; unsubs.forEach(fn => { try{ fn() }catch{} }) }
@@ -172,7 +181,7 @@ export default function App() {
     const totalFilled = inventory.reduce((s, it) => s + it.stockFilled, 0)
     const totalEmpty = inventory.reduce((s, it) => s + it.stockEmpty, 0)
     const lows = inventory.filter(it => it.stockFilled <= it.threshold).length
-    const hiramOutstanding = hiramRecords.filter(r=>r.status!=='returned').reduce((s,r)=> s + (r.borrowed - r.returned), 0)
+    const hiramOutstanding = orders.filter(o => (o.borrowedCount ?? o.borrowed_count ?? 0) > 0).reduce((s, o) => s + (o.borrowedCount ?? o.borrowed_count ?? 0), 0)
     return {
       filled: totalFilled,
       empty: totalEmpty,
@@ -181,7 +190,7 @@ export default function App() {
       todaySales: peso(dayEvents.filter(e=>e.type==='sale'||e.type==='delivery').reduce((s,e)=>s+e.amount,0)),
       monthSales: peso(monthEvents.filter(e=>e.type==='sale'||e.type==='delivery').reduce((s,e)=>s+e.amount,0)),
     }
-  }, [inventory, dayEvents, monthEvents, hiramRecords])
+  }, [inventory, dayEvents, monthEvents, orders])
 
   const handlePrint = () => {
     setPrintDate(new Date(selectedDate))
@@ -280,17 +289,36 @@ export default function App() {
   }
 
   const handlePaymentStatusUpdate = async (orderId, newPaymentStatus) => {
+    const order = orders.find(o => o.orderId === orderId)
+    const recalc = order ? recomputeOrderTotals(order, newPaymentStatus) : null
     setOrders(prev => {
-      const next = prev.map(o => o.orderId === orderId ? { ...o, payment_status: newPaymentStatus, paymentStatus: newPaymentStatus, is_paid: newPaymentStatus === 'PAID', isPaid: newPaymentStatus === 'PAID' } : o)
+      const next = prev.map(o => {
+        if (o.orderId !== orderId) return o
+        const base = { ...o, payment_status: newPaymentStatus, paymentStatus: newPaymentStatus, is_paid: newPaymentStatus === 'PAID', isPaid: newPaymentStatus === 'PAID' }
+        if (recalc) {
+          base.subtotal = recalc.subtotal
+          base.deliveryFee = recalc.deliveryFee
+          base.delivery_fee = recalc.deliveryFee
+          base.total = recalc.total
+        }
+        return base
+      })
       try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(next)) } catch {}
       return next
     })
     if (isSupabaseConfigured()) {
       setSyncing(true)
-      try { await DB.updatePaymentStatus(orderId, newPaymentStatus); showToast(`Order ${orderId} payment → ${newPaymentStatus} • Synced`) }
+      try {
+        if (recalc) {
+          await DB.updateOrder(orderId, { payment_status: newPaymentStatus, subtotal: recalc.subtotal, delivery_fee: recalc.deliveryFee, total: recalc.total })
+        } else {
+          await DB.updatePaymentStatus(orderId, newPaymentStatus)
+        }
+        showToast(`Order ${orderId} payment → ${newPaymentStatus} • Synced${recalc ? ` • ${recalc.total}` : ''}`)
+      }
       catch (e) { console.warn('[orders] updatePaymentStatus failed', e); showToast(`Order ${orderId} payment → ${newPaymentStatus} • Saved locally`) }
       finally { setSyncing(false) }
-    } else showToast(`Order ${orderId} payment → ${newPaymentStatus}`)
+    } else showToast(`Order ${orderId} payment → ${newPaymentStatus}${recalc ? ` • ${recalc.total}` : ''}`)
   }
 
   const handleOrderCreate = async (newOrder) => {
@@ -310,6 +338,55 @@ export default function App() {
       finally { setSyncing(false) }
     }
     return order
+  }
+
+  const handleMessageReply = async (id, reply) => {
+    setMessages(prev => prev.map(m => String(m.id) === String(id) ? { ...m, reply, is_replied: true, isReplied: true, is_read: true, isRead: true } : m))
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try { const updated = await DB.replyToMessage(id, reply); setMessages(prev => prev.map(m => String(m.id) === String(updated.id) ? updated : m)); showToast('Reply sent • Synced to Supabase') }
+      catch (e) { console.warn('[messages] reply failed', e); showToast('Reply failed • Saved locally') }
+      finally { setSyncing(false) }
+    } else showToast('Reply saved locally')
+  }
+  const handleMessageBlock = async (id, blocked) => {
+    setMessages(prev => prev.map(m => String(m.id) === String(id) ? { ...m, is_blocked: blocked, isBlocked: blocked } : m))
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try { const updated = await DB.blockMessage(id, blocked); setMessages(prev => prev.map(m => String(m.id) === String(updated.id) ? updated : m)); showToast(blocked ? 'Customer blocked • Synced' : 'Customer unblocked • Synced') }
+      catch (e) { console.warn('[messages] block failed', e); showToast('Block failed • Saved locally') }
+      finally { setSyncing(false) }
+    } else showToast(blocked ? 'Blocked locally' : 'Unblocked locally')
+  }
+  const handleMessageDelete = async (id, hard = false) => {
+    if (!hard) setMessages(prev => prev.map(m => String(m.id) === String(id) ? { ...m, is_deleted: true, isDeleted: true } : m))
+    else setMessages(prev => prev.filter(m => String(m.id) !== String(id)))
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try { 
+        if (hard) await DB.deleteMessage(id, true)
+        else await DB.deleteMessage(id, false)
+        if (hard) showToast('Message deleted forever • Synced')
+        else showToast('Message deleted • Synced')
+      }
+      catch (e) { console.warn('[messages] delete failed', e); showToast('Delete failed') }
+      finally { setSyncing(false) }
+    } else showToast(hard ? 'Deleted forever locally' : 'Deleted locally')
+  }
+  const handleMessageRestore = async (id) => {
+    setMessages(prev => prev.map(m => String(m.id) === String(id) ? { ...m, is_deleted: false, isDeleted: false } : m))
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try { const updated = await DB.restoreMessage(id); setMessages(prev => prev.map(m => String(m.id) === String(updated.id) ? updated : m)); showToast('Message restored • Synced') }
+      catch (e) { console.warn('[messages] restore failed', e) }
+      finally { setSyncing(false) }
+    } else showToast('Restored locally')
+  }
+  const handleMessageRead = async (id, isRead) => {
+    setMessages(prev => prev.map(m => String(m.id) === String(id) ? { ...m, is_read: isRead, isRead: isRead } : m))
+    if (isSupabaseConfigured()) {
+      try { await DB.markMessageRead(id, isRead) } catch {}
+    }
   }
 
   const toggleSidebar = () => {
@@ -456,9 +533,10 @@ export default function App() {
           )}
 
           {activeTab==='orders' && <OrdersView orders={orders} onUpdateOrders={handleOrdersUpdate} onCancelOrder={handleOrderCancel} onCreateOrder={handleOrderCreate} onUpdateStatus={handleOrderStatusUpdate} onUpdatePaymentStatus={handlePaymentStatusUpdate} showToast={showToast} dbStatus={dbStatus} />}
+          {activeTab==='messages' && <MessagesView messages={messages} onReply={handleMessageReply} onBlock={handleMessageBlock} onDelete={handleMessageDelete} onRestore={handleMessageRestore} onMarkRead={handleMessageRead} onHardDelete={(id)=>handleMessageDelete(id,true)} showToast={showToast} />}
           {activeTab==='products' && <ProductsView products={products} />}
           {activeTab==='inventory' && <InventoryView inventory={inventory} onUpdate={handleInventoryUpdate} dbStatus={dbStatus} />}
-          {activeTab==='borrowed' && <HiramView records={hiramRecords} onUpdateRecords={setHiramRecords} />}
+          {activeTab==='borrowed' && <HiramView orders={orders} />}
           {activeTab==='expenses' && <ExpensesView expenses={expenses} onUpdateExpenses={setExpenses} />}
           {activeTab==='reports' && <ReportsView events={events} inventory={inventory} />}
         </main>

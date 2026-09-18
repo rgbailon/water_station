@@ -1,4 +1,5 @@
 import { peso, nowPHString } from './dateUtils'
+import { getEffectivePrice, productById } from '../data/ordersData'
 
 function downloadBlob(content, filename, mime = 'application/vnd.ms-excel') {
   const blob = new Blob([content], { type: mime + ';charset=utf-8;' })
@@ -391,24 +392,28 @@ export function exportReportsExcel({ events, inventory }) {
 export function exportOrdersExcel(orders) {
   const headers = ['Order Number', 'Date & Time', 'Customer', 'Phone', 'Address', 'Items', 'Quantity', 'Borrowed', 'Subtotal', 'Delivery Fee', 'Total', 'Payment', 'Payment Status', 'Schedule', 'Status', 'Canceled', 'Notes']
   const rows = [...orders].sort((a, b) => b.date - a.date).map(o => {
-    // database-driven status (no timers) + borrowed + payment audit
+    // database-driven status (no timers) + borrowed + payment audit — borrowed UNPAID uses container price
     const status = o.status || (o.isCanceled || o.is_canceled ? 'CANCELED' : 'PENDING')
     const paymentStatus = o.payment_status || o.paymentStatus || (o.isPaid || o.is_paid ? 'PAID' : 'UNPAID')
     const borrowed = o.borrowedCount ?? o.borrowed_count ?? o.items.filter(it => it.is_borrow || it.product?.bottleSituation === 'BORROW').reduce((s,it)=>s+(it.quantity||0),0)
+    const displaySubtotal = o.items.reduce((s,it) => s + getEffectivePrice(it.product || productById[it.productId], paymentStatus) * (it.quantity||0), 0)
+    const displayTotal = displaySubtotal
     const d = new Date(o.date)
     const datePH = d.toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     const itemsStr = o.items.map(it => {
       const p = it.product || { name: `PID ${it.productId}` }
-      return `${p.name} x${it.quantity}`
+      const eff = getEffectivePrice(p, paymentStatus)
+      return eff !== p.price ? `${p.name} x${it.quantity} @${peso(eff)} container` : `${p.name} x${it.quantity}`
     }).join('; ')
     const qtyTotal = o.items.reduce((s, it) => s + it.quantity, 0)
-    return [o.orderId, datePH, o.customerName, o.phone || '—', o.address || '—', itemsStr, String(qtyTotal), String(borrowed), peso(o.subtotal), peso(o.deliveryFee), peso(o.total), o.payment, paymentStatus, o.schedule, status, o.isCanceled ? 'YES' : 'NO', o.notes || '—']
+    return [o.orderId, datePH, o.customerName, o.phone || '—', o.address || '—', itemsStr, String(qtyTotal), String(borrowed), peso(displaySubtotal), peso(0), peso(displayTotal), o.payment, paymentStatus, o.schedule, status, o.isCanceled ? 'YES' : 'NO', o.notes || '—']
   })
-  const totalRevenue = orders.filter(o => !o.isCanceled).reduce((s, o) => s + o.total, 0)
+  const getDispTotal = (o) => o.items.reduce((s,it)=> s + getEffectivePrice(it.product || productById[it.productId], o.payment_status || o.paymentStatus || (o.isPaid||o.is_paid?'PAID':'UNPAID')) * (it.quantity||0),0)
+  const totalRevenue = orders.filter(o => !o.isCanceled).reduce((s, o) => s + getDispTotal(o), 0)
   const totalBorrowed = orders.reduce((s,o)=> s + (o.borrowedCount ?? o.borrowed_count ?? 0), 0)
   const paidOrders = orders.filter(o => (o.payment_status || o.paymentStatus || (o.isPaid||o.is_paid?'PAID':'UNPAID')) === 'PAID').length
   const unpaidOrders = orders.length - paidOrders
-  const unpaidRevenue = orders.filter(o => (o.payment_status || o.paymentStatus || (o.isPaid||o.is_paid?'PAID':'UNPAID')) === 'UNPAID' && !o.isCanceled).reduce((s,o)=>s+o.total,0)
+  const unpaidRevenue = orders.filter(o => (o.payment_status || o.paymentStatus || (o.isPaid||o.is_paid?'PAID':'UNPAID')) === 'UNPAID' && !o.isCanceled).reduce((s,o)=>s+getDispTotal(o),0)
   const summary = [
     { label: 'Total Orders', value: String(orders.length) },
     { label: 'Canceled Orders', value: String(orders.filter(o => o.isCanceled).length) },

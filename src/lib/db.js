@@ -432,6 +432,9 @@ export async function updateOrder(orderId, patch) {
   if ('is_archived' in patch) rowPatch.is_archived = !!patch.is_archived
   if ('notes' in patch) rowPatch.notes = patch.notes
   if ('total' in patch) rowPatch.total = patch.total
+  if ('subtotal' in patch) rowPatch.subtotal = patch.subtotal
+  if ('delivery_fee' in patch) rowPatch.delivery_fee = patch.delivery_fee
+  if ('deliveryFee' in patch) rowPatch.delivery_fee = patch.deliveryFee
   // keep status and booleans consistent when only booleans are patched
   if (rowPatch.is_canceled && !rowPatch.status) rowPatch.status = 'CANCELED'
   if (rowPatch.is_delivered && !rowPatch.status && !rowPatch.is_canceled) rowPatch.status = 'DELIVERED'
@@ -458,6 +461,110 @@ export async function deleteOrder(orderId) {
   const sb = requireClient()
   const res = await sb.from('orders').delete().eq('order_id', orderId)
   if (res.error) throw res.error
+}
+
+// ---------- MESSAGES (customer inbox) ----------
+
+export function messageFromRow(r) {
+  return {
+    id: r.id,
+    customerName: r.customer_name,
+    customer_name: r.customer_name,
+    phone: r.customer_phone,
+    customerPhone: r.customer_phone,
+    address: r.customer_address,
+    orderId: r.order_id,
+    order_id: r.order_id,
+    message: r.message,
+    reply: r.reply || '',
+    isRead: !!r.is_read,
+    is_read: !!r.is_read,
+    isReplied: !!r.is_replied,
+    is_replied: !!r.is_replied,
+    isBlocked: !!r.is_blocked,
+    is_blocked: !!r.is_blocked,
+    isDeleted: !!r.is_deleted,
+    is_deleted: !!r.is_deleted,
+    isArchived: !!r.is_archived,
+    is_archived: !!r.is_archived,
+    createdAt: r.created_at,
+    created_at: r.created_at,
+    updatedAt: r.updated_at,
+    repliedAt: r.replied_at,
+    blockedAt: r.blocked_at,
+  }
+}
+export function messageToRow(m) {
+  return {
+    id: m.id,
+    customer_name: m.customerName || m.customer_name,
+    customer_phone: m.phone || m.customerPhone || m.customer_phone || '',
+    customer_address: m.address || m.customer_address || '',
+    order_id: m.orderId || m.order_id || null,
+    message: m.message,
+    reply: m.reply || '',
+    is_read: !!m.isRead || !!m.is_read,
+    is_replied: !!m.isReplied || !!m.is_replied || (m.reply && String(m.reply).trim().length > 0),
+    is_blocked: !!m.isBlocked || !!m.is_blocked,
+    is_deleted: !!m.isDeleted || !!m.is_deleted,
+    is_archived: !!m.isArchived || !!m.is_archived,
+  }
+}
+
+export async function fetchMessages({ includeDeleted = false, includeBlocked = true } = {}) {
+  const sb = requireClient()
+  let q = sb.from('messages').select('*').order('created_at', { ascending: false }).limit(300)
+  if (!includeDeleted) q = q.eq('is_deleted', false)
+  if (!includeBlocked) q = q.eq('is_blocked', false)
+  const res = await q
+  return handleErr(res, 'fetchMessages').map(messageFromRow)
+}
+export async function fetchMessageById(id) {
+  const sb = requireClient()
+  const res = await sb.from('messages').select('*').eq('id', id).single()
+  return messageFromRow(handleErr(res, 'fetchMessageById'))
+}
+export async function createMessage(payload) {
+  const sb = requireClient()
+  const row = {
+    customer_name: payload.customerName || payload.customer_name,
+    customer_phone: payload.phone || payload.customerPhone || '',
+    customer_address: payload.address || payload.customer_address || '',
+    order_id: payload.orderId || payload.order_id || null,
+    message: payload.message,
+  }
+  const res = await sb.from('messages').insert(row).select().single()
+  return messageFromRow(handleErr(res, 'createMessage'))
+}
+export async function replyToMessage(id, replyText) {
+  const sb = requireClient()
+  const res = await sb.from('messages').update({ reply: replyText, is_read: true }).eq('id', id).select().single()
+  return messageFromRow(handleErr(res, 'replyToMessage'))
+}
+export async function markMessageRead(id, isRead = true) {
+  const sb = requireClient()
+  const res = await sb.from('messages').update({ is_read: isRead }).eq('id', id).select().single()
+  return messageFromRow(handleErr(res, 'markMessageRead'))
+}
+export async function blockMessage(id, blocked = true) {
+  const sb = requireClient()
+  const res = await sb.from('messages').update({ is_blocked: blocked }).eq('id', id).select().single()
+  return messageFromRow(handleErr(res, 'blockMessage'))
+}
+export async function deleteMessage(id, hard = false) {
+  const sb = requireClient()
+  if (hard) {
+    const res = await sb.from('messages').delete().eq('id', id)
+    if (res.error) throw res.error
+    return true
+  }
+  const res = await sb.from('messages').update({ is_deleted: true }).eq('id', id).select().single()
+  return messageFromRow(handleErr(res, 'deleteMessage'))
+}
+export async function restoreMessage(id) {
+  const sb = requireClient()
+  const res = await sb.from('messages').update({ is_deleted: false }).eq('id', id).select().single()
+  return messageFromRow(handleErr(res, 'restoreMessage'))
 }
 
 // ---------- realtime helpers ----------
