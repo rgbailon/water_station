@@ -142,6 +142,16 @@ export default function App() {
         if (payload.eventType === 'UPDATE') setMessages(prev => prev.map(m => String(m.id) === String(payload.new.id) ? DB.messageFromRow(payload.new) : m))
         if (payload.eventType === 'DELETE') setMessages(prev => prev.filter(m => String(m.id) !== String(payload.old.id)))
       }))
+      unsubs.push(DB.subscribeTable('expenses', payload => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') setExpenses(prev => {
+          const row = payload.new
+          const idx = prev.findIndex(e => String(e.id) === String(row.id))
+          const mapped = { id: row.id, date: row.date, category: row.category, desc: row.description, description: row.description, amount: row.amount, is_paid: row.is_paid, is_recurring: row.is_recurring, is_archived: row.is_archived }
+          if (idx >= 0) return prev.map((e, i) => i === idx ? mapped : e)
+          return [...prev, mapped]
+        })
+        if (payload.eventType === 'DELETE') setExpenses(prev => prev.filter(e => String(e.id) !== String(payload.old.id)))
+      }))
     } catch {}
     return () => { cancelled = true; unsubs.forEach(fn => { try{ fn() }catch{} }) }
   }, [])
@@ -360,6 +370,26 @@ export default function App() {
     return order
   }
 
+  const handleExpenseSave = async (payload, isEdit) => {
+    if (isEdit) setExpenses(prev => prev.map(e => String(e.id) === String(payload.id) ? { ...e, ...payload } : e))
+    else setExpenses(prev => [...prev, { ...payload, id: payload.id ?? Date.now() }])
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try { await DB.upsertExpense(payload); showToast(isEdit ? 'Expense updated • Synced' : 'Expense added • Synced') }
+      catch (e) { console.warn('[expenses] sync failed', e); showToast(isEdit ? 'Updated locally (sync failed)' : 'Added locally (sync failed)') }
+      finally { setSyncing(false) }
+    } else showToast(isEdit ? 'Expense updated locally' : 'Expense added locally')
+  }
+  const handleExpenseDelete = async (id) => {
+    setExpenses(prev => prev.filter(e => String(e.id) !== String(id)))
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try { await DB.deleteExpense(id); showToast('Expense deleted • Synced') }
+      catch (e) { console.warn('[expenses] delete failed', e); showToast('Deleted locally (sync failed)') }
+      finally { setSyncing(false) }
+    } else showToast('Expense deleted locally')
+  }
+
   const handleMessageReply = async (id, reply) => {
     setMessages(prev => prev.map(m => String(m.id) === String(id) ? { ...m, reply, is_replied: true, isReplied: true, is_read: true, isRead: true } : m))
     if (isSupabaseConfigured()) {
@@ -488,50 +518,10 @@ export default function App() {
                 events={events}
                 selectedDate={selectedDate}
                 onSelectDate={setSelectedDate}
-                onAddClick={(d)=>{ setSelectedDate(d); setEditingEvent(null); setModalDate(d)}}
-                onEventClick={(ev)=>{ setEditingEvent(ev); setModalDate(parseDate(ev.date))}}
+                onAddClick={() => {}}
+                onEventClick={() => {}}
                 filters={filters}
               />
-
-              <div className="day-detail">
-                <div className="day-detail-head">
-                  <div>
-                    <h3>📅 {selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', weekday:'long', month:'long', day:'numeric', year:'numeric'})}</h3>
-                    <p>{dayEvents.length} entries • {peso(dayEvents.reduce((s,e)=>s+(e.type==='sale'||e.type==='delivery'?e.amount:0),0))} sales total {dbStatus.mode==='online' && <span style={{ color: '#059669', fontWeight: 700 }}>• Live from Supabase</span>}</p>
-                  </div>
-                  <div style={{ display:'flex', gap:8 }}>
-                    <button className="btn btn-day-ghost" onClick={handlePrint} title="Print paper sheet for this date">🖨 Print Sheet for this date</button>
-                    <button className="btn btn-day-primary" onClick={()=>{ setEditingEvent(null); setModalDate(selectedDate)}}><span className="plus">+</span> Add Entry</button>
-                  </div>
-                </div>
-
-                {dayEvents.length===0 ? (
-                  <div className="empty-day">
-                    <div style={{ fontSize:28, marginBottom:6 }}>🗓️</div>
-                    No entries for this day.<br />Click <b>+ Add Entry</b> or click any calendar cell to create a sale, delivery, or expense.
-                    <div style={{ marginTop: 10, fontSize: 11, color: 'var(--slate-500)' }}>
-                      Booleans: is_paid, is_archived, is_recurring are stored per event in Supabase.
-                    </div>
-                  </div>
-                ) : (
-                  <div className="day-events-list">
-                    {dayEvents.map(ev=> (
-                      <div key={ev.id} className={`day-event-card ${ev.type}`}>
-                        <div className="icon">{ev.icon}</div>
-                        <div style={{ flex:1 }}>
-                          <h4>{ev.title}</h4>
-                          <p>{ev.customer || '—'} {ev.note?`• ${ev.note}`:''} {ev.is_paid ? <span className="pill green" style={{ fontSize:10, padding:'1px 6px' }}>Paid ✓</span> : ev.type==='sale'||ev.type==='delivery' ? <span className="pill amber" style={{ fontSize:10 }}>Unpaid</span> : null} {ev.is_recurring ? <span className="pill slate" style={{ fontSize:10 }}>↻ Recurring</span> : null}</p>
-                          <div className="actions">
-                            <button className="btn-xs" onClick={()=>{ setEditingEvent(ev); setModalDate(parseDate(ev.date))}}>Edit</button>
-                            <button className="btn-xs danger" onClick={()=>handleDelete(ev.id)}>Delete</button>
-                          </div>
-                        </div>
-                        <span className="amt">{ev.amount>0? peso(ev.amount): '—'}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </>
           )}
 
@@ -540,7 +530,7 @@ export default function App() {
           {activeTab==='products' && <ProductsView products={products} />}
           {activeTab==='inventory' && <InventoryView inventory={inventory} onUpdate={handleInventoryUpdate} dbStatus={dbStatus} />}
           {activeTab==='borrowed' && <HiramView orders={orders} />}
-          {activeTab==='expenses' && <ExpensesView expenses={expenses} onUpdateExpenses={setExpenses} />}
+          {activeTab==='expenses' && <ExpensesView expenses={expenses} onUpdateExpenses={setExpenses} onSaveExpense={handleExpenseSave} onDeleteExpense={handleExpenseDelete} />}
           {activeTab==='reports' && <ReportsView events={events} inventory={inventory} />}
         </main>
       </div>

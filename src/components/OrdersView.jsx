@@ -686,48 +686,6 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           )
         })}
       </div>
-      <div style={{ display: 'flex', gap: 6, padding: '0 18px 10px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--slate-500)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Borrowed audit:</span>
-        {[
-          { id: 'ALL', label: 'All', count: orders.length },
-          { id: 'BORROWED', label: 'Borrowed only', count: stats.borrowedOrders },
-          { id: 'NOT_BORROWED', label: 'No borrowed', count: orders.length - stats.borrowedOrders },
-        ].map(f => {
-          const active = borrowedFilter === f.id
-          return (
-            <button key={f.id} onClick={() => setBorrowedFilter(f.id)} style={{
-              padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-              border: `1px solid ${active ? '#92400e' : 'var(--slate-200)'}`,
-              background: active ? '#fffbeb' : 'var(--white)', color: active ? '#92400e' : 'var(--slate-700)', cursor: 'pointer'
-            }}>
-              {f.label} <span style={{ opacity: 0.7, fontWeight: 600 }}>({f.count})</span>
-            </button>
-          )
-        })}
-        <span style={{ fontSize: 11, color: 'var(--slate-500)', marginLeft: 6, fontWeight: 600 }}>{stats.totalBorrowed} gals total borrowed • monitored in DB</span>
-      </div>
-      <div style={{ display: 'flex', gap: 6, padding: '0 18px 10px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--slate-500)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Payment audit:</span>
-        {[
-          { id: 'ALL', label: 'All', count: orders.length },
-          { id: 'PAID', label: 'Paid', count: stats.paidOrders },
-          { id: 'UNPAID', label: 'Unpaid', count: stats.unpaidOrders },
-        ].map(f => {
-          const active = paymentStatusFilter === f.id
-          return (
-            <button key={f.id} onClick={() => setPaymentStatusFilter(f.id)} style={{
-              padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-              border: `1px solid ${active ? (f.id === 'PAID' ? '#059669' : f.id === 'UNPAID' ? '#d97706' : 'var(--slate-900)') : 'var(--slate-200)'}`,
-              background: active ? (f.id === 'PAID' ? '#dcfce7' : f.id === 'UNPAID' ? '#fef3c7' : 'var(--slate-900)') : 'var(--white)',
-              color: active ? (f.id === 'PAID' ? '#065f46' : f.id === 'UNPAID' ? '#92400e' : 'var(--white)') : 'var(--slate-700)', cursor: 'pointer'
-            }}>
-              {f.label} <span style={{ opacity: 0.7, fontWeight: 600 }}>({f.count})</span>
-            </button>
-          )
-        })}
-        <span style={{ fontSize: 11, color: 'var(--slate-500)', marginLeft: 6, fontWeight: 600 }}>{peso(stats.unpaidRevenue)} unpaid • audited in DB</span>
-      </div>
-
       <div className="table-wrap" style={{ paddingTop: 0 }}>
         <table className="table">
           <thead>
@@ -786,13 +744,10 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                     {borrowed > 0 && <div style={{ fontSize: 10, color: '#92400e', fontWeight: 600, marginTop: 2 }}>Audit</div>}
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
-                      <PaymentPill statusId={getPaymentStatus(order).id} />
-                      <select value={getPaymentStatus(order).id} onChange={e => handlePaymentStatusChange(order.orderId, e.target.value)} style={{ padding: '4px 6px', borderRadius: 8, border: `1px solid ${getPaymentStatus(order).id==='PAID' ? '#a7f3d0' : '#fde68a'}`, fontSize: 11, fontWeight: 600, background: getPaymentStatus(order).id==='PAID' ? '#dcfce7' : '#fef3c7', color: getPaymentStatus(order).id==='PAID' ? '#065f46' : '#92400e' }}>
-                        <option value="PAID">Paid</option>
-                        <option value="UNPAID">Unpaid</option>
-                      </select>
-                    </div>
+                    <select value={getPaymentStatus(order).id} onChange={e => handlePaymentStatusChange(order.orderId, e.target.value)} style={{ padding: '4px 6px', borderRadius: 8, border: `1px solid ${getPaymentStatus(order).id==='PAID' ? '#a7f3d0' : '#fde68a'}`, fontSize: 11, fontWeight: 600, background: getPaymentStatus(order).id==='PAID' ? '#dcfce7' : '#fef3c7', color: getPaymentStatus(order).id==='PAID' ? '#065f46' : '#92400e' }}>
+                      <option value="PAID">Paid</option>
+                      <option value="UNPAID">Unpaid</option>
+                    </select>
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--slate-900)' }}>
                     <div>{peso(getOrderDisplayTotal(order))}</div>
