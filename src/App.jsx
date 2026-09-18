@@ -69,12 +69,15 @@ export default function App() {
   // ---- Supabase initial load + realtime ----
   useEffect(() => {
     if (!isSupabaseConfigured()) {
-      setDbStatus({ mode: 'offline', label: 'Offline — saved on this device', color: '#64748b', detail: 'Set VITE_SUPABASE_URL / ANON_KEY in .env to sync' })
+      const offline = { mode: 'offline', label: 'Offline — saved on this device', color: '#64748b', detail: 'Set VITE_SUPABASE_URL / ANON_KEY in .env to sync' }
+      setDbStatus(offline)
+      console.log('[Supabase]', offline.label, offline.detail, 'Pooler ap-northeast-1:6543 • RLS open (anon) — offline')
       return
     }
     let cancelled = false
     setSyncing(true)
     const cfg = getSupabaseConfig()
+    console.log('[Supabase] Connecting — pooler', 'ap-northeast-1:6543', cfg.url, 'RLS open (anon)')
     // Parallel fetches; each falls back silently
     Promise.allSettled([
       DB.fetchProducts().catch(() => null),
@@ -101,14 +104,17 @@ export default function App() {
       if (msgR.status === 'fulfilled' && Array.isArray(msgR.value)) { setMessages(msgR.value); ok++ } else fail++
 
       hasSynced.current = true
+      let nextStatus
       if (ok > 0 && fail === 0) {
-        setDbStatus({ mode: 'online', label: 'Connected — Supabase (pooler)', color: '#059669', detail: `ap-northeast-1 • ${cfg.url}` })
+        nextStatus = { mode: 'online', label: 'Connected — Supabase (pooler)', color: '#059669', detail: `ap-northeast-1 • ${cfg.url}` }
         showToast(`Connected to Supabase — ${ok} tables synced`)
       } else if (ok > 0) {
-        setDbStatus({ mode: 'partial', label: `Supabase — ${ok} tables synced, ${fail} offline`, color: '#d97706', detail: 'Some tables still use local data. Run schema.sql if missing.' })
+        nextStatus = { mode: 'partial', label: `Supabase — ${ok} tables synced, ${fail} offline`, color: '#d97706', detail: 'Some tables still use local data. Run schema.sql if missing.' }
       } else {
-        setDbStatus({ mode: 'online-empty', label: 'Supabase connected — empty DB, using local seed', color: '#1a7bb8', detail: 'Run supabase/seed.sql to populate initial data' })
+        nextStatus = { mode: 'online-empty', label: 'Supabase connected — empty DB, using local seed', color: '#1a7bb8', detail: 'Run supabase/seed.sql to populate initial data' }
       }
+      setDbStatus(nextStatus)
+      console.log('[Supabase]', nextStatus.label, nextStatus.detail, '| Pooler ap-northeast-1:6543 • RLS open (anon) •', ok, 'ok', fail, 'fail', cfg.url)
     }).finally(() => { if (!cancelled) setSyncing(false) })
 
     // realtime (best-effort)
@@ -139,6 +145,14 @@ export default function App() {
     } catch {}
     return () => { cancelled = true; unsubs.forEach(fn => { try{ fn() }catch{} }) }
   }, [])
+
+  // console-only status (UI banner removed per user request)
+  useEffect(() => {
+    console.log('[Supabase status]', dbStatus.label, dbStatus.detail || '', '| Pooler ap-northeast-1:6543 • RLS open (anon)', isSupabaseConfigured() ? getSupabaseConfig().url : 'offline')
+  }, [dbStatus])
+  useEffect(() => {
+    if (syncing) console.log('[Supabase] Syncing…')
+  }, [syncing])
 
   const monthEvents = useMemo(() => events.filter(e => e.date.startsWith(formatISO(currentDate).slice(0,7))), [events, currentDate])
   const selectedISO = formatISO(selectedDate)
@@ -433,23 +447,6 @@ export default function App() {
   return (
     <>
       <Header onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} dbStatus={dbStatus} syncing={syncing} />
-
-      {/* DB status banner */}
-      <div style={{
-        margin: '10px 18px 0', padding: '8px 12px', borderRadius: 10, fontSize: 12.5, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
-        background: dbStatus.mode === 'online' ? '#ecfdf5' : dbStatus.mode === 'offline' ? '#f8fafc' : '#fffbeb',
-        border: `1px solid ${dbStatus.mode === 'online' ? '#a7f3d0' : dbStatus.mode === 'offline' ? '#e2e8f0' : '#fde68a'}`,
-        color: dbStatus.color, fontWeight: 600
-      }}>
-        <span style={{ width: 8, height: 8, borderRadius: 999, background: dbStatus.color, display: 'inline-block', flexShrink: 0 }}></span>
-        <span>{dbStatus.label}</span>
-        {syncing && <span style={{ background: 'var(--slate-900)', color: 'white', padding: '2px 8px', borderRadius: 999, fontSize: 11 }}>Syncing…</span>}
-        {dbStatus.detail && <span style={{ fontWeight: 500, color: 'var(--slate-500)', fontSize: 11 }}>{dbStatus.detail}</span>}
-        <span style={{ marginLeft: 'auto', fontWeight: 500, color: 'var(--slate-500)', fontSize: 11 }}>
-          {isSupabaseConfigured() ? 'Pooler ap-northeast-1:6543 • RLS open (anon)' : 'Offline mode — data saved locally'}
-        </span>
-        {!isSupabaseConfigured() && <span style={{ fontSize: 11, background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: 999, border: '1px solid #fde68a' }}>Add VITE_SUPABASE_ANON_KEY to .env to go live</span>}
-      </div>
 
       <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <Sidebar active={activeTab} onChange={handleNavChange} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
