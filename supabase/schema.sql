@@ -173,6 +173,9 @@ create table if not exists public.orders (
   schedule      text        not null default 'Today' check (schedule in ('Today','Tomorrow')),
   notes         text        not null default '',
   status        text        not null default 'PENDING' check (status in ('PENDING','CONFIRMED','GALLON_TO_GET','OUT_FOR_DELIVERY','DELIVERED','CANCELED')),
+  -- audit: borrowed gallons in this order (sum of order_items where is_borrow=true)
+  borrowed_count integer    not null default 0 check (borrowed_count >= 0),
+  is_borrowed   boolean     not null default false,
   -- booleans (kept for compatibility + filtering; synced with status via trigger)
   is_canceled   boolean     not null default false,
   is_delivered  boolean     not null default false,
@@ -183,8 +186,10 @@ create table if not exists public.orders (
 create index if not exists idx_orders_created on public.orders(created_at desc);
 create index if not exists idx_orders_customer on public.orders(customer_name);
 create index if not exists idx_orders_status on public.orders(status);
+create index if not exists idx_orders_borrowed on public.orders(is_borrowed) where is_borrowed = true;
 
 -- trigger to keep status ↔ booleans in sync (status is source of truth, but legacy boolean writes also flip status)
+-- also keeps is_borrowed in sync with borrowed_count for audit
 create or replace function public.trg_orders_status_sync()
 returns trigger language plpgsql as $$
 begin
@@ -208,12 +213,33 @@ begin
       new.is_canceled := false;
     end if;
   end if;
+  -- audit: borrowed flag follows count
+  new.is_borrowed := coalesce(new.borrowed_count,0) > 0;
   new.updated_at := now();
   return new;
 end $$;
 drop trigger if exists orders_status_sync on public.orders;
 create trigger orders_status_sync before insert or update on public.orders
   for each row execute function public.trg_orders_status_sync();
+
+-- keep borrowed_count accurate when order_items change (audit trail)
+create or replace function public.trg_order_items_borrowed()
+returns trigger language plpgsql as $$
+declare oid text;
+begin
+  oid := coalesce(new.order_id, old.order_id);
+  update public.orders
+  set borrowed_count = (
+    select coalesce(sum(quantity),0) from public.order_items where order_id = oid and is_borrow = true
+  )
+  where order_id = oid;
+  -- also update is_borrowed via status trigger on next update; direct set here for immediacy
+  update public.orders set is_borrowed = borrowed_count > 0 where order_id = oid;
+  return coalesce(new, old);
+end $$;
+drop trigger if exists order_items_borrowed_sync on public.order_items;
+create trigger order_items_borrowed_sync after insert or update or delete on public.order_items
+  for each row execute function public.trg_order_items_borrowed();
 
 -- ---------------------------------------------------------------------------
 -- 7. ORDER_ITEMS  (line items per order)
@@ -302,6 +328,8 @@ select
   o.schedule,
   o.notes,
   o.status,
+  o.borrowed_count,
+  o.is_borrowed,
   o.is_canceled,
   o.is_delivered,
   o.is_paid,

@@ -91,17 +91,17 @@ insert into public.expenses (id, date, category, description, amount, is_paid, i
 on conflict (id) do update set amount=excluded.amount, updated_at=now();
 select setval('public.expenses_id_seq', (select max(id) from public.expenses), true);
 
--- ---------------- ORDERS (8) — status is now database-driven (no timers) ----------------
-insert into public.orders (order_id, created_at, customer_name, phone, address, subtotal, delivery_fee, total, payment_method, schedule, notes, status, is_canceled, is_delivered, is_paid, is_archived) values
-('WFR-1234', '2026-09-11 09:30:00+08', 'Aling Nena Sari-Sari','0905-***-6789','Brgy. San Isidro - near market', 250, 0, 250, 'Cash on Delivery','Today',    'Partial hiram return included', 'DELIVERED',       false, true,  true,  false),
-('WFR-8761', '2026-09-10 14:00:00+08', 'Irosin NHS Canteen',  '0930-***-1111','San Julian, Irosin - Irosin NHS', 180, 0, 180, 'Cash on Delivery','Tomorrow', 'School event — need OR',        'DELIVERED',       false, true,  true,  false),
-('WFR-4821', now() - interval '2 hours', 'Juan Dela Cruz','0912-345-6789','Brgy. Monbon, Irosin - Purok 3 near chapel', 80, 0, 80, 'Cash on Delivery','Today','Leave at gate — dog is friendly', 'PENDING',         false,false,false,false),
-('WFR-7392', now() - interval '3 hours', 'Maria Santos',  '0917-000-1122','Brgy. Patag, Irosin',                         105,0,105, 'Cash on Delivery','Today','',                                  'CONFIRMED',       false,false,false,false),
-('WFR-6105', now() - interval '4 hours', 'Ana Reyes',     '0905-123-4567','Brgy. San Isidro, Irosin - San Isidro Elementary',85,0,85,'Cash on Delivery','Today','Leave at door',                   'GALLON_TO_GET',   false,false,false,false),
-('WFR-2847', now() - interval '5 hours', 'Kap. Reyes',    '0917-***-4321','Brgy. Patag - Barangay Hall',               355,0,355, 'Cash on Delivery','Tomorrow','Deliver before 10am — barangay meeting', 'OUT_FOR_DELIVERY',false,false,false,false),
-('WFR-9153', now() - interval '6 hours', 'Mina Store',    '0920-***-9876','Brgy. Bagsangan - National Road',           125,0,125, 'Cash on Delivery','Today','',                                  'DELIVERED',       false,true, true, false),
-('WFR-5033', now() - interval '1 hour',  'Lito Manalo',   '0930-111-2222','Brgy. Carriedo, Irosin',                     60,0, 60, 'Cash on Delivery','Today','Customer requested cancel — wrong size', 'CANCELED',        true,false,false,false)
-on conflict (order_id) do update set customer_name=excluded.customer_name, total=excluded.total, status=excluded.status, updated_at=now();
+-- ---------------- ORDERS (8) — status is now database-driven (no timers) + borrowed audit ----------------
+insert into public.orders (order_id, created_at, customer_name, phone, address, subtotal, delivery_fee, total, payment_method, schedule, notes, status, borrowed_count, is_borrowed, is_canceled, is_delivered, is_paid, is_archived) values
+('WFR-1234', '2026-09-11 09:30:00+08', 'Aling Nena Sari-Sari','0905-***-6789','Brgy. San Isidro - near market', 250, 0, 250, 'Cash on Delivery','Today',    'Partial hiram return included', 'DELIVERED',       0, false, false, true,  true,  false),
+('WFR-8761', '2026-09-10 14:00:00+08', 'Irosin NHS Canteen',  '0930-***-1111','San Julian, Irosin - Irosin NHS', 180, 0, 180, 'Cash on Delivery','Tomorrow', 'School event — need OR',        'DELIVERED',       4, true,  false, true,  true,  false),
+('WFR-4821', now() - interval '2 hours', 'Juan Dela Cruz','0912-345-6789','Brgy. Monbon, Irosin - Purok 3 near chapel', 80, 0, 80, 'Cash on Delivery','Today','Leave at gate — dog is friendly', 'PENDING',         1, true,  false,false,false,false),
+('WFR-7392', now() - interval '3 hours', 'Maria Santos',  '0917-000-1122','Brgy. Patag, Irosin',                         105,0,105, 'Cash on Delivery','Today','',                                  'CONFIRMED',       0, false, false,false,false,false),
+('WFR-6105', now() - interval '4 hours', 'Ana Reyes',     '0905-123-4567','Brgy. San Isidro, Irosin - San Isidro Elementary',85,0,85,'Cash on Delivery','Today','Leave at door',                   'GALLON_TO_GET',   0, false, false,false,false,false),
+('WFR-2847', now() - interval '5 hours', 'Kap. Reyes',    '0917-***-4321','Brgy. Patag - Barangay Hall',               355,0,355, 'Cash on Delivery','Tomorrow','Deliver before 10am — barangay meeting', 'OUT_FOR_DELIVERY',0, false, false,false,false,false),
+('WFR-9153', now() - interval '6 hours', 'Mina Store',    '0920-***-9876','Brgy. Bagsangan - National Road',           125,0,125, 'Cash on Delivery','Today','',                                  'DELIVERED',       5, true,  false,true, true, false),
+('WFR-5033', now() - interval '1 hour',  'Lito Manalo',   '0930-111-2222','Brgy. Carriedo, Irosin',                     60,0, 60, 'Cash on Delivery','Today','Customer requested cancel — wrong size', 'CANCELED',        0, false, true,false,false,false)
+on conflict (order_id) do update set customer_name=excluded.customer_name, total=excluded.total, status=excluded.status, borrowed_count=excluded.borrowed_count, is_borrowed=excluded.is_borrowed, updated_at=now();
 
 -- ---------------- ORDER_ITEMS ----------------
 -- WFR-1234: 11 x1 (170) + 5 x2 (80) = 250

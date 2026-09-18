@@ -67,6 +67,7 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus }) {
   if (!order) return null
   const status = getOrderStatus(order)
   const canCancel = canCancelOrder(order)
+  const borrowed = order.borrowedCount ?? order.borrowed_count ?? order.items.filter(it => (it.is_borrow || it.product?.bottleSituation === 'BORROW')).reduce((s,it)=>s+(it.quantity||0),0)
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 760, maxHeight: '92vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
@@ -108,9 +109,10 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Date & time</span><span style={{ fontSize: 12 }}>{formatOrderDate(order.date)}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Subtotal</span><b>{peso(order.subtotal)}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'var(--slate-500)' }}>Delivery fee</span><b>{peso(order.deliveryFee)} {order.deliveryFee === 0 && <span style={{ fontWeight: 600, color: '#059669' }}>Free</span>}</b></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: borrowed > 0 ? '#fffbeb' : 'var(--white)', border: borrowed > 0 ? '1px solid #fde68a' : '1px solid var(--slate-200)', borderRadius: 8, padding: '6px 8px' }}><span style={{ color: borrowed > 0 ? '#92400e' : 'var(--slate-500)', fontWeight: 700 }}>🤝 Borrowed (audit)</span><b style={{ color: borrowed > 0 ? '#92400e' : 'var(--slate-900)' }}>{borrowed} gals {borrowed > 0 ? <span className="pill amber" style={{ fontSize: 10, marginLeft: 6 }}>Monitored</span> : <span style={{ fontWeight: 500, color: 'var(--slate-400)' }}>— none</span>}</b></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '8px 10px', background: '#0f172a', color: 'white', borderRadius: 8 }}><span>Total amount</span><b>{peso(order.total)}</b></div>
                 <div style={{ fontSize: 11, color: 'var(--slate-500)', lineHeight: 1.5, background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
-                  Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above. Status is database-driven — no timers.
+                  Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above. Borrowed is audited in Supabase <code>orders.borrowed_count</code>.
                 </div>
               </div>
             </div>
@@ -205,6 +207,7 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
   const subtotal = selectedIds.reduce((s, id) => s + productById[id].price * qtyMap[id], 0)
   const deliveryFee = subtotal >= ORDER_CONSTANTS.MIN_DELIVERY_FREE ? 0 : ORDER_CONSTANTS.DELIVERY_FEE_FLAT
   const total = subtotal + deliveryFee
+  const borrowedCount = selectedIds.reduce((s, id) => s + (productById[id]?.bottleSituation === 'BORROW' ? qtyMap[id] : 0), 0)
 
   const inc = (id) => {
     const prod = productById[id]
@@ -244,6 +247,10 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
       schedule,
       notes: notes.trim(),
       isCanceled: false,
+      borrowedCount,
+      borrowed_count: borrowedCount,
+      isBorrowed: borrowedCount > 0,
+      is_borrowed: borrowedCount > 0,
     }
     onCreate(order)
   }
@@ -370,8 +377,9 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
             <div style={{ display: 'grid', gap: 4, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--slate-500)' }}>Subtotal ({selectedIds.reduce((s, id) => s + qtyMap[id], 0)} items)</span><b>{peso(subtotal)}</b></div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--slate-500)' }}>Delivery fee</span><b style={{ color: deliveryFee === 0 ? '#059669' : 'var(--slate-900)' }}>{peso(deliveryFee)} {deliveryFee === 0 ? 'Free' : ''}</b></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: borrowedCount > 0 ? '#fffbeb' : 'transparent', border: borrowedCount > 0 ? '1px solid #fde68a' : 'none', borderRadius: 6, padding: borrowedCount > 0 ? '4px 6px' : 0 }}><span style={{ color: borrowedCount > 0 ? '#92400e' : 'var(--slate-500)', fontWeight: 700 }}>🤝 Borrowed (audit)</span><b style={{ color: borrowedCount > 0 ? '#92400e' : 'var(--slate-900)' }}>{borrowedCount} gals {borrowedCount > 0 && <span className="pill amber" style={{ fontSize: 10, marginLeft: 4 }}>Monitored</span>}</b></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800 }}><span>Total</span><span style={{ color: 'var(--slate-900)' }}>{peso(total)}</span></div>
-              <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above</div>
+              <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>Free delivery for orders {peso(ORDER_CONSTANTS.MIN_DELIVERY_FREE)} and above • Borrowed audited in <code>orders.borrowed_count</code></div>
             </div>
             <div style={{ display: 'grid', gap: 8 }}>
               <button className="btn-save" disabled={!isValid || !hasSelection} style={{ opacity: !isValid || !hasSelection ? 0.5 : 1, padding: '12px 18px', fontSize: 14 }} onClick={handleCreate}>
@@ -396,10 +404,17 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [scheduleFilter, setScheduleFilter] = useState('ALL')
   const [paymentFilter, setPaymentFilter] = useState('ALL')
+  const [borrowedFilter, setBorrowedFilter] = useState('ALL')
   const [selected, setSelected] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [pickUpPrint, setPickUpPrint] = useState(null)
   const [deliveryPrint, setDeliveryPrint] = useState(null)
+  const [statsCollapsed, setStatsCollapsed] = useState(() => {
+    try {
+      const v = localStorage.getItem('ordersStatsCollapsed')
+      return v === null ? true : v === 'true'
+    } catch { return true }
+  })
 
   const stats = useMemo(() => {
     const total = orders.length
@@ -413,7 +428,9 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
     const delivered = byStatus.DELIVERED || 0
     const revenue = orders.filter(o => getOrderStatus(o).id !== 'CANCELED').reduce((s, o) => s + o.total, 0)
     const avg = total - canceled > 0 ? revenue / (total - canceled) : 0
-    return { total, canceled, active, delivered, revenue, avg, byStatus }
+    const borrowedOrders = orders.filter(o => (o.borrowedCount ?? o.borrowed_count ?? 0) > 0).length
+    const totalBorrowed = orders.reduce((s, o) => s + (o.borrowedCount ?? o.borrowed_count ?? 0), 0)
+    return { total, canceled, active, delivered, revenue, avg, byStatus, borrowedOrders, totalBorrowed }
   }, [orders])
 
   const filtered = useMemo(() => {
@@ -422,6 +439,11 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
       if (statusFilter !== 'ALL' && st !== statusFilter) return false
       if (scheduleFilter !== 'ALL' && o.schedule !== scheduleFilter) return false
       if (paymentFilter !== 'ALL' && o.payment !== paymentFilter) return false
+      if (borrowedFilter !== 'ALL') {
+        const bc = o.borrowedCount ?? o.borrowed_count ?? 0
+        if (borrowedFilter === 'BORROWED' && bc === 0) return false
+        if (borrowedFilter === 'NOT_BORROWED' && bc > 0) return false
+      }
       if (search.trim()) {
         const q = search.toLowerCase()
         const hay = `${o.orderId} ${o.customerName} ${o.phone || ''} ${o.address || ''} ${o.notes || ''} ${o.status || ''} ${o.items.map(it => (it.product || productById[it.productId])?.name || '').join(' ')}`.toLowerCase()
@@ -429,7 +451,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
       }
       return true
     }).sort((a, b) => b.date - a.date)
-  }, [orders, statusFilter, scheduleFilter, paymentFilter, search])
+  }, [orders, statusFilter, scheduleFilter, paymentFilter, borrowedFilter, search])
 
   const handleCancel = (orderId) => {
     if (onCancelOrder) return onCancelOrder(orderId)
@@ -493,23 +515,45 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
         </div>
       </div>
 
-      <div className="stats-grid" style={{ paddingTop: 0 }}>
-        <div className="stat-card blue">
-          <div className="stat-top"><span className="stat-label">Total orders</span><span className="stat-icon">🧾</span></div>
-          <div className="stat-value">{stats.total}</div>
-          <div className="stat-trend trend-up">{stats.active} in progress • {stats.canceled} canceled</div>
-        </div>
-        <div className="stat-card green">
-          <div className="stat-top"><span className="stat-label">Delivered</span><span className="stat-icon">✅</span></div>
-          <div className="stat-value">{stats.delivered}</div>
-          <div className="stat-trend trend-up">{stats.active} still pending</div>
-        </div>
-        <div className="stat-card amber">
-          <div className="stat-top"><span className="stat-label">Total sales</span><span className="stat-icon">💧</span></div>
-          <div className="stat-value">{peso(stats.revenue)}</div>
-          <div className="stat-trend" style={{ color: '#92400e' }}>Average {peso(Math.round(stats.avg))}</div>
-        </div>
+      <div style={{ margin: '0 18px', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0 6px' }}>
+        <button
+          onClick={() => setStatsCollapsed(v => { const n = !v; try { localStorage.setItem('ordersStatsCollapsed', String(n)) } catch {} return n })}
+          className="btn-xs"
+          style={{ padding: '6px 10px', fontSize: 12, fontWeight: 700, background: statsCollapsed ? 'var(--white)' : 'var(--slate-900)', color: statsCollapsed ? 'var(--slate-700)' : 'var(--white)', borderColor: 'var(--slate-200)' }}
+          aria-expanded={!statsCollapsed}
+          title={statsCollapsed ? 'Show summary stats' : 'Hide summary stats'}
+        >
+          {statsCollapsed ? '▶ Show summary' : '▼ Hide summary'}
+        </button>
+        <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>
+          {statsCollapsed ? `${stats.total} orders • ${stats.delivered} delivered • ${peso(stats.revenue)} total • ${stats.borrowedOrders} borrowed (${stats.totalBorrowed} gals)` : 'Summary — click to hide and reduce clutter'}
+        </span>
+        {!statsCollapsed && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--slate-400)' }}>Hidden by default • Audited</span>}
       </div>
+      {!statsCollapsed && (
+        <div className="stats-grid" style={{ paddingTop: 0 }}>
+          <div className="stat-card blue">
+            <div className="stat-top"><span className="stat-label">Total orders</span><span className="stat-icon">🧾</span></div>
+            <div className="stat-value">{stats.total}</div>
+            <div className="stat-trend trend-up">{stats.active} in progress • {stats.canceled} canceled</div>
+          </div>
+          <div className="stat-card green">
+            <div className="stat-top"><span className="stat-label">Delivered</span><span className="stat-icon">✅</span></div>
+            <div className="stat-value">{stats.delivered}</div>
+            <div className="stat-trend trend-up">{stats.active} still pending</div>
+          </div>
+          <div className="stat-card amber">
+            <div className="stat-top"><span className="stat-label">Total sales</span><span className="stat-icon">💧</span></div>
+            <div className="stat-value">{peso(stats.revenue)}</div>
+            <div className="stat-trend" style={{ color: '#92400e' }}>Average {peso(Math.round(stats.avg))}</div>
+          </div>
+          <div className="stat-card slate" style={{ border: '1px solid #fde68a', background: '#fffbeb' }}>
+            <div className="stat-top"><span className="stat-label">Borrowed (audit)</span><span className="stat-icon">🤝</span></div>
+            <div className="stat-value" style={{ color: stats.totalBorrowed > 0 ? '#92400e' : 'var(--slate-900)' }}>{stats.totalBorrowed} gals</div>
+            <div className="stat-trend" style={{ color: '#92400e' }}>{stats.borrowedOrders} orders • monitored</div>
+          </div>
+        </div>
+      )}
 
       <div style={{ margin: '0 18px', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ flex: '1 1 200px', minWidth: 180, position: 'relative' }}>
@@ -533,9 +577,14 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           <option value="ALL">All payment methods</option>
           {paymentOptions.map(p => <option key={p.label} value={p.label}>{p.label}</option>)}
         </select>
-        <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{filtered.length} of {orders.length} orders</span>
-        {(search || statusFilter !== 'ALL' || scheduleFilter !== 'ALL' || paymentFilter !== 'ALL') && (
-          <button className="btn-xs" onClick={() => { setSearch(''); setStatusFilter('ALL'); setScheduleFilter('ALL'); setPaymentFilter('ALL') }}>Clear</button>
+        <select value={borrowedFilter} onChange={e => setBorrowedFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: borrowedFilter !== 'ALL' ? '#fffbeb' : 'var(--white)', color: 'var(--slate-700)', borderColor: borrowedFilter !== 'ALL' ? '#fde68a' : 'var(--slate-200)' }}>
+          <option value="ALL">All borrowed</option>
+          <option value="BORROWED">Borrowed only ({stats.borrowedOrders})</option>
+          <option value="NOT_BORROWED">No borrowed</option>
+        </select>
+        <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{filtered.length} of {orders.length} orders • {stats.totalBorrowed} gals borrowed</span>
+        {(search || statusFilter !== 'ALL' || scheduleFilter !== 'ALL' || paymentFilter !== 'ALL' || borrowedFilter !== 'ALL') && (
+          <button className="btn-xs" onClick={() => { setSearch(''); setStatusFilter('ALL'); setScheduleFilter('ALL'); setPaymentFilter('ALL'); setBorrowedFilter('ALL') }}>Clear</button>
         )}
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
           <span style={{ width: 8, height: 8, borderRadius: 999, background: '#0ea5e9', display: 'inline-block' }}></span> DB synced
@@ -558,6 +607,26 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           )
         })}
       </div>
+      <div style={{ display: 'flex', gap: 6, padding: '0 18px 10px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--slate-500)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Borrowed audit:</span>
+        {[
+          { id: 'ALL', label: 'All', count: orders.length },
+          { id: 'BORROWED', label: 'Borrowed only', count: stats.borrowedOrders },
+          { id: 'NOT_BORROWED', label: 'No borrowed', count: orders.length - stats.borrowedOrders },
+        ].map(f => {
+          const active = borrowedFilter === f.id
+          return (
+            <button key={f.id} onClick={() => setBorrowedFilter(f.id)} style={{
+              padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              border: `1px solid ${active ? '#92400e' : 'var(--slate-200)'}`,
+              background: active ? '#fffbeb' : 'var(--white)', color: active ? '#92400e' : 'var(--slate-700)', cursor: 'pointer'
+            }}>
+              {f.label} <span style={{ opacity: 0.7, fontWeight: 600 }}>({f.count})</span>
+            </button>
+          )
+        })}
+        <span style={{ fontSize: 11, color: 'var(--slate-500)', marginLeft: 6, fontWeight: 600 }}>{stats.totalBorrowed} gals total borrowed • monitored in DB</span>
+      </div>
 
       <div className="table-wrap" style={{ paddingTop: 0 }}>
         <table className="table">
@@ -567,6 +636,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
               <th>Date & time</th>
               <th>Customer</th>
               <th>Items</th>
+              <th style={{ textAlign: 'center' }}>Borrowed</th>
               <th style={{ textAlign: 'right' }}>Total</th>
               <th>Status</th>
               <th>Change status</th>
@@ -575,12 +645,13 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: 'var(--slate-500)' }}>No orders found.</td></tr>
+              <tr><td colSpan={9} style={{ textAlign: 'center', padding: 24, color: 'var(--slate-500)' }}>No orders found.</td></tr>
             ) : filtered.map(order => {
               const st = getOrderStatus(order)
               const canCancel = canCancelOrder(order)
+              const borrowed = order.borrowedCount ?? order.borrowed_count ?? 0
               return (
-                <tr key={order.orderId}>
+                <tr key={order.orderId} style={borrowed > 0 ? { background: '#fffbeb' } : undefined}>
                   <td>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <b style={{ fontFamily: 'var(--mono)', color: 'var(--slate-900)', fontSize: 13 }}>{order.orderId}</b>
@@ -600,12 +671,18 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 160 }}>
                       {order.items.map((it, i) => {
                         const p = it.product || productById[it.productId]
+                        const isBorrow = it.is_borrow || p?.bottleSituation === 'BORROW'
                         return <div key={i} style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
                           <span style={{ fontWeight: 600, color: 'var(--slate-900)' }}>{p.name} ({p.container})</span>
                           <span style={{ color: 'var(--slate-500)' }}>×{it.quantity}</span>
+                          {isBorrow && <span className="pill amber" style={{ fontSize: 10, padding: '1px 5px' }}>Borrow</span>}
                         </div>
                       })}
                     </div>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    {borrowed > 0 ? <span className="pill amber" style={{ fontSize: 12, fontWeight: 800, padding: '3px 8px', borderColor: '#fde68a' }}>🤝 {borrowed} gals</span> : <span className="pill slate" style={{ fontSize: 11 }}>— 0</span>}
+                    {borrowed > 0 && <div style={{ fontSize: 10, color: '#92400e', fontWeight: 600, marginTop: 2 }}>Audit</div>}
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--slate-900)' }}>{peso(order.total)}</td>
                   <td><StatusPill statusId={st.id} /></td>
@@ -648,13 +725,14 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
             </div>
           </div>
         </div>
-        <div style={{ background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
-          <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--slate-900)' }}>Database-driven</h3>
-          <div style={{ fontSize: 13, color: 'var(--slate-600)', lineHeight: 1.6, display: 'grid', gap: 8 }}>
-            <div>All orders are saved in Supabase <code>public.orders</code>. Status changes sync instantly via Realtime.</div>
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: 14 }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: 13, color: '#92400e' }}>🤝 Borrowed audit</h3>
+          <div style={{ fontSize: 13, color: '#92400e', lineHeight: 1.6, display: 'grid', gap: 8 }}>
+            <div><code>orders.borrowed_count</code> is audited per order — sum of Borrow gallons. Use Borrowed filter above or Borrowed column to monitor. Trigger <code>order_items_borrowed_sync</code> keeps it accurate.</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <span className="pill amber">Borrowed monitored</span>
               <span className="pill green">DB synced</span>
-              <span className="pill blue">No timers</span>
+              <span className="pill slate">{stats.totalBorrowed} gals total</span>
             </div>
           </div>
         </div>

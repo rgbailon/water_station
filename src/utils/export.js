@@ -389,10 +389,11 @@ export function exportReportsExcel({ events, inventory }) {
 }
 
 export function exportOrdersExcel(orders) {
-  const headers = ['Order Number', 'Date & Time', 'Customer', 'Phone', 'Address', 'Items', 'Quantity', 'Subtotal', 'Delivery Fee', 'Total', 'Payment', 'Schedule', 'Status', 'Canceled', 'Notes']
+  const headers = ['Order Number', 'Date & Time', 'Customer', 'Phone', 'Address', 'Items', 'Quantity', 'Borrowed', 'Subtotal', 'Delivery Fee', 'Total', 'Payment', 'Schedule', 'Status', 'Canceled', 'Notes']
   const rows = [...orders].sort((a, b) => b.date - a.date).map(o => {
-    // database-driven status (no timers)
+    // database-driven status (no timers) + borrowed audit
     const status = o.status || (o.isCanceled || o.is_canceled ? 'CANCELED' : 'PENDING')
+    const borrowed = o.borrowedCount ?? o.borrowed_count ?? o.items.filter(it => it.is_borrow || it.product?.bottleSituation === 'BORROW').reduce((s,it)=>s+(it.quantity||0),0)
     const d = new Date(o.date)
     const datePH = d.toLocaleString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     const itemsStr = o.items.map(it => {
@@ -400,20 +401,23 @@ export function exportOrdersExcel(orders) {
       return `${p.name} x${it.quantity}`
     }).join('; ')
     const qtyTotal = o.items.reduce((s, it) => s + it.quantity, 0)
-    return [o.orderId, datePH, o.customerName, o.phone || '—', o.address || '—', itemsStr, String(qtyTotal), peso(o.subtotal), peso(o.deliveryFee), peso(o.total), o.payment, o.schedule, status, o.isCanceled ? 'YES' : 'NO', o.notes || '—']
+    return [o.orderId, datePH, o.customerName, o.phone || '—', o.address || '—', itemsStr, String(qtyTotal), String(borrowed), peso(o.subtotal), peso(o.deliveryFee), peso(o.total), o.payment, o.schedule, status, o.isCanceled ? 'YES' : 'NO', o.notes || '—']
   })
   const totalRevenue = orders.filter(o => !o.isCanceled).reduce((s, o) => s + o.total, 0)
+  const totalBorrowed = orders.reduce((s,o)=> s + (o.borrowedCount ?? o.borrowed_count ?? 0), 0)
   const summary = [
     { label: 'Total Orders', value: String(orders.length) },
     { label: 'Canceled Orders', value: String(orders.filter(o => o.isCanceled).length) },
+    { label: 'Borrowed Orders', value: String(orders.filter(o => (o.borrowedCount ?? o.borrowed_count ?? 0) > 0).length) },
+    { label: 'Total Borrowed Gallons', value: `${totalBorrowed} gals` },
     { label: 'Total Sales', value: peso(totalRevenue) },
     { label: 'Average Order Value', value: orders.filter(o => !o.isCanceled).length ? peso(Math.round(totalRevenue / orders.filter(o => !o.isCanceled).length)) : '₱0' },
   ]
   const html = buildWorkbookSheet({
     title: 'TUBIG IROSIN — CUSTOMER ORDERS',
-    subtitle: `${orders.length} orders • ${peso(totalRevenue)} total sales • All orders from this device`,
+    subtitle: `${orders.length} orders • ${peso(totalRevenue)} total sales • ${totalBorrowed} gals borrowed • All orders from this device`,
     headers, rows, summary,
-    footer: 'Order status is database-driven. Update status manually in Supabase/orders table.',
+    footer: 'Order status is database-driven. Borrowed is audited in orders.borrowed_count.',
   })
   downloadBlob(html, `Tubig_Irosin_Orders_${new Date().toISOString().slice(0, 10)}.xls`)
 }

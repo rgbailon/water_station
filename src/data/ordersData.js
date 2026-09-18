@@ -384,7 +384,8 @@ function mkOrder({ orderId, date, status = 'PENDING', customerName, phone, addre
   const finalStatus = isCanceled ? 'CANCELED' : status
   const { subtotal, deliveryFee, total } = calcTotals(items)
   const expanded = items.map(it => ({ ...it, product: productById[it.productId] }))
-  return { orderId, date: ts, status: finalStatus, customerName, phone, address, items: expanded, subtotal, deliveryFee, total, payment, schedule, notes, isCanceled: finalStatus === 'CANCELED' }
+  const borrowedCount = expanded.filter(it => it.product?.bottleSituation === 'BORROW').reduce((s,it)=> s+it.quantity,0)
+  return { orderId, date: ts, status: finalStatus, customerName, phone, address, items: expanded, subtotal, deliveryFee, total, payment, schedule, notes, isCanceled: finalStatus === 'CANCELED', borrowedCount, borrowed_count: borrowedCount, isBorrowed: borrowedCount>0, is_borrowed: borrowedCount>0 }
 }
 
 // Sample orders — each has explicit database status (no timers)
@@ -480,6 +481,7 @@ export function generateSampleOrders() {
       schedule: 'Today',
       notes: 'Partial hiram return included',
       isCanceled: false,
+      borrowedCount: 0, borrowed_count: 0, isBorrowed: false, is_borrowed: false,
     },
     {
       orderId: 'WFR-8761',
@@ -496,6 +498,7 @@ export function generateSampleOrders() {
       schedule: 'Tomorrow',
       notes: 'School event — need OR',
       isCanceled: false,
+      borrowedCount: 4, borrowed_count: 4, isBorrowed: true, is_borrowed: true,
     },
   ]
 }
