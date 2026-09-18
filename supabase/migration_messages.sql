@@ -62,16 +62,5 @@ begin
   begin alter publication supabase_realtime add table public.messages; exception when duplicate_object then null; end;
 end $$;
 
--- seed — real-looking customer messages (no dummy lorem, use actual names/phones from Irosin)
-insert into public.messages (customer_name, customer_phone, customer_address, order_id, message, is_read, is_replied, reply, is_blocked) values
-('Juan Dela Cruz','09123456789','Brgy. Monbon, Irosin','WFR-4821','Boss, pwede pa-deliver 2 gals bukas ng umaga? May lakad kasi kami.','false','false','',false),
-('Maria Santos','09170001122','Brgy. Patag, Irosin','WFR-7392','Magkano po ang 3 Mineral Slim? May discount ba pag 3?','true','true','Hello Maria! ₱35 each po ang Mineral Slim — ₱105 total. Free delivery pa rin.',false),
-('Ana Reyes','09051234567','Brgy. San Isidro, Irosin','WFR-6105','Yung order ko kahapon WFR-6105, pwede i-cancel? Nagkamali ako ng size.','false','false','',false),
-('Kap. Reyes','09173334444','Brgy. Patag Hall','WFR-2847','Paki deliver bago mag 10am bukas please. May barangay meeting. Salamat!','true','false','',false),
-('Mina Store','09207778888','Brgy. Bagsangan, Irosin','WFR-9153','Na-receive ko na yung 5 gals, salamat! Babayaran ko na via GCash.','true','false','',false),
-('Lito Manalo','09301112222','Brgy. Carriedo, Irosin','WFR-5033','Boss sorry wrong order — hindi na tuloy, cancel na lang.','true','true','Noted sir Lito, canceled na po ang WFR-5033. No charge.',false),
-('Aling Nena','09051231234','Brgy. San Isidro','WFR-1234','May utang pa ba ako sa hiram? 2 gals pa ba?', 'false','false','',false),
-('Ronald Torres','09205551234','Brgy. Gulang-Gulang, Irosin',null,'Order po ng Purified 5 gals Round, deliver tonight?','false','false','',false)
-on conflict do nothing;
-
+-- no dummy seed — real customer messages only (removed 8 dummy chats per user request)
 select 'messages ready' as info, (select count(*) from public.messages) as total;
