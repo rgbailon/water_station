@@ -163,6 +163,7 @@ create index if not exists idx_expenses_category on public.expenses(category);
 create table if not exists public.orders (
   order_id      text        primary key,  -- WFR-1234
   created_at    timestamptz not null default now(),
+  customer_id   uuid references public.users(id) on delete set null,
   customer_name text        not null,
   phone         text        not null default '',
   address       text        not null default '',
@@ -187,6 +188,7 @@ create table if not exists public.orders (
 );
 create index if not exists idx_orders_created on public.orders(created_at desc);
 create index if not exists idx_orders_customer on public.orders(customer_name);
+create index if not exists idx_orders_customer_id on public.orders(customer_id);
 create index if not exists idx_orders_status on public.orders(status);
 create index if not exists idx_orders_borrowed on public.orders(is_borrowed) where is_borrowed = true;
 create index if not exists idx_orders_payment_status on public.orders(payment_status) where payment_status = 'UNPAID';
@@ -363,6 +365,7 @@ from public.inventory_items;
 -- ---------------------------------------------------------------------------
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
+  customer_id uuid references public.users(id) on delete set null,
   customer_name text not null,
   customer_phone text not null default '',
   customer_address text not null default '',
@@ -380,6 +383,7 @@ create table if not exists public.messages (
   blocked_at timestamptz
 );
 create index if not exists idx_messages_created on public.messages(created_at desc);
+create index if not exists idx_messages_customer_id on public.messages(customer_id);
 create index if not exists idx_messages_customer_phone on public.messages(customer_phone);
 create index if not exists idx_messages_is_blocked on public.messages(is_blocked) where is_blocked = true;
 create index if not exists idx_messages_is_read on public.messages(is_read) where is_read = false;

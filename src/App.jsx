@@ -10,7 +10,7 @@ import ExpensesView from './components/ExpensesView'
 import ReportsView from './components/ReportsView'
 import DailyPrintSheet from './components/DailyPrintSheet'
 import { initialEvents, inventoryItems as initialInventory, hiramRecords as initialHiram, expensesList as initialExpenses } from './data/mockData'
-import { defaultSampleOrders, ORDER_STORE_SPEC, sampleProducts, recomputeOrderTotals } from './data/ordersData'
+import { defaultSampleOrders, ORDER_STORE_SPEC, sampleProducts, recomputeOrderTotals, needsPickup } from './data/ordersData'
 import DashboardView from './components/DashboardView'
 import OrdersView from './components/OrdersView'
 import MessagesView from './components/MessagesView'
@@ -275,17 +275,23 @@ export default function App() {
   }
 
   const handleOrderStatusUpdate = async (orderId, newStatus) => {
+    const order = orders.find(o => o.orderId === orderId)
+    let finalStatus = newStatus
+    if (order && newStatus === 'GALLON_TO_GET' && !needsPickup(order)) {
+      finalStatus = 'OUT_FOR_DELIVERY'
+      showToast('New/Borrow orders skip Gallon Pick Up → Out for Delivery')
+    }
     setOrders(prev => {
-      const next = prev.map(o => o.orderId === orderId ? { ...o, status: newStatus, isCanceled: newStatus === 'CANCELED', is_canceled: newStatus === 'CANCELED', is_delivered: newStatus === 'DELIVERED' } : o)
+      const next = prev.map(o => o.orderId === orderId ? { ...o, status: finalStatus, isCanceled: finalStatus === 'CANCELED', is_canceled: finalStatus === 'CANCELED', is_delivered: finalStatus === 'DELIVERED' } : o)
       try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(next)) } catch {}
       return next
     })
     if (isSupabaseConfigured()) {
       setSyncing(true)
-      try { await DB.updateOrderStatus(orderId, newStatus); showToast(`Order ${orderId} → ${newStatus} • Synced`) }
-      catch (e) { console.warn('[orders] updateOrderStatus failed', e); showToast(`Order ${orderId} → ${newStatus} • Saved locally`) }
+      try { await DB.updateOrderStatus(orderId, finalStatus); showToast(`Order ${orderId} → ${finalStatus} • Synced`) }
+      catch (e) { console.warn('[orders] updateOrderStatus failed', e); showToast(`Order ${orderId} → ${finalStatus} • Saved locally`) }
       finally { setSyncing(false) }
-    } else showToast(`Order ${orderId} → ${newStatus}`)
+    } else showToast(`Order ${orderId} → ${finalStatus}`)
   }
 
   const handlePaymentStatusUpdate = async (orderId, newPaymentStatus) => {

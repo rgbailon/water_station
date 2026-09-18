@@ -233,6 +233,8 @@
   width: 100%;
   text-align: left;
   position: relative;
+  min-height: 60px;
+  box-sizing: border-box;
 }
 .nav-item:hover { background: var(--slate-50); color: var(--slate-700); }
 .nav-item.active {
@@ -301,6 +303,7 @@
     justify-content: center;
     padding: 10px 6px;
     gap: 0;
+    min-height: 60px;
   }
   .sidebar.collapsed .nav-item .ico {
     width: 40px;

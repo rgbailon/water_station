@@ -43,7 +43,8 @@ export default function MessagesView({ messages = [], onReply, onBlock, onDelete
   }, [messages])
 
   const handleReply = async (id) => {
-    const text = (replyDraft[id] || '').trim()
+    const fallback = messages.find(m => String(m.id) === String(id))?.reply || ''
+    const text = (replyDraft[id] ?? fallback ?? '').trim()
     if (!text) return showToast && showToast('Reply cannot be empty')
     if (onReply) await onReply(id, text)
     setReplyDraft(d => ({ ...d, [id]: '' }))
@@ -152,7 +153,11 @@ export default function MessagesView({ messages = [], onReply, onBlock, onDelete
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 120 }}>
                   <button className="btn-xs" style={{ padding: '6px 10px', background: isExpanded ? 'var(--slate-900)' : 'var(--white)', color: isExpanded ? 'var(--white)' : 'var(--slate-700)', borderColor: 'var(--slate-200)' }} onClick={() => {
-                    setExpanded(isExpanded ? null : m.id)
+                    const willExpand = !isExpanded
+                    setExpanded(willExpand ? m.id : null)
+                    if (willExpand && replyDraft[m.id] === undefined) {
+                      setReplyDraft(d => ({ ...d, [m.id]: m.reply || '' }))
+                    }
                     if (!m.is_read && !m.is_deleted && onMarkRead) onMarkRead(m.id, true)
                   }}>
                     {isExpanded ? 'Close' : m.is_replied ? 'Reply again' : 'Reply'}

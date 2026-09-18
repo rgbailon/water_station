@@ -28,6 +28,26 @@ export const PaymentStatus = {
   UNPAID: { id: 'UNPAID', label: 'Unpaid', color: '#d97706', bg: '#fef3c7', border: '#fde68a' },
 }
 
+// New gallon / Borrowed orders skip Gallon Pick Up — only Order Confirmed → Out for Delivery
+export function isNewOrBorrowOrder(order) {
+  const items = order?.items || []
+  if (!items.length) return false
+  return items.some(it => {
+    const p = it.product || productById[it.productId]
+    return p && (p.bottleSituation === 'NEEDS_GALLON' || p.bottleSituation === 'BORROW')
+  })
+}
+export function needsPickup(order) {
+  return !isNewOrBorrowOrder(order)
+}
+export function getValidStatuses(order) {
+  if (needsPickup(order)) return Object.values(OrderStatus)
+  return [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.CANCELED]
+}
+export function isValidStatusForOrder(order, statusId) {
+  return getValidStatuses(order).some(s => s.id === statusId)
+}
+
 // Product colors
 export const accentColors = {
   Aqua: { hex: '#26C6DA', argb: 0xFF26C6DA, signed: -14100902 }, // 4280158682 unsigned

@@ -13,6 +13,9 @@ import {
   recomputeOrderTotals,
   getOrderDisplayTotal,
   getOrderDisplaySubtotal,
+  needsPickup,
+  isNewOrBorrowOrder,
+  getValidStatuses,
   canCancelOrder,
   formatOrderDate,
   formatOrderDateShort,
@@ -39,9 +42,8 @@ function PaymentPill({ statusId }) {
 }
 
 function Timeline({ order }) {
-  const current = getOrderStatus(order).id
-  const steps = ['PENDING', 'CONFIRMED', 'GALLON_TO_GET', 'OUT_FOR_DELIVERY', 'DELIVERED']
-  if (current === 'CANCELED') {
+  const currentRaw = getOrderStatus(order).id
+  if (currentRaw === 'CANCELED') {
     return (
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10 }}>
         <span style={{ width: 10, height: 10, borderRadius: 999, background: '#dc2626', display: 'inline-block' }}></span>
@@ -50,6 +52,12 @@ function Timeline({ order }) {
       </div>
     )
   }
+  const noPickup = !needsPickup(order)
+  const steps = noPickup
+    ? ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY', 'DELIVERED']
+    : ['PENDING', 'CONFIRMED', 'GALLON_TO_GET', 'OUT_FOR_DELIVERY', 'DELIVERED']
+  // Map GALLON_TO_GET to CONFIRMED for no-pickup orders (should not happen, but handle gracefully)
+  const current = (noPickup && currentRaw === 'GALLON_TO_GET') ? 'CONFIRMED' : currentRaw
   const idx = steps.indexOf(current)
   return (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -69,6 +77,7 @@ function Timeline({ order }) {
           </div>
         )
       })}
+      {noPickup && <span style={{ fontSize: 10, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 6px', fontWeight: 700, marginLeft: 8 }}>No Gallon Pick Up — New/Borrow</span>}
     </div>
   )
 }
@@ -96,8 +105,16 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus, onUpdatePa
           {onUpdateStatus && status.id !== 'CANCELED' && status.id !== 'DELIVERED' && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 10, padding: '10px 12px' }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--slate-700)' }}>Update status:</span>
-              <select value={status.id} onChange={e => onUpdateStatus(order.orderId, e.target.value)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700 }}>
-                {Object.values(OrderStatus).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              <select value={status.id} onChange={e => {
+                let next = e.target.value
+                // Auto-skip Gallon Pick Up for New/Borrow orders
+                if (next === 'GALLON_TO_GET' && !needsPickup(order)) {
+                  next = 'OUT_FOR_DELIVERY'
+                  alert('New gallon / Borrowed orders skip Gallon Pick Up → Out for Delivery instead')
+                }
+                onUpdateStatus(order.orderId, next)
+              }} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700 }}>
+                {getValidStatuses(order).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
               <span style={{ fontSize: 11, color: 'var(--slate-500)' }}>Changes are saved to Supabase immediately.</span>
             </div>
@@ -533,6 +550,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
   }
 
   const pickUpList = useMemo(() => orders.filter(o => {
+    if (!needsPickup(o)) return false
     const s = getOrderStatus(o).id
     return s === OrderStatus.CONFIRMED.id || s === OrderStatus.GALLON_TO_GET.id
   }), [orders])
@@ -783,9 +801,17 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                   </td>
                   <td><StatusPill statusId={st.id} /></td>
                   <td>
-                    <select value={st.id} onChange={e => handleStatusChange(order.orderId, e.target.value)} style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 600, background: 'var(--white)' }}>
-                      {Object.values(OrderStatus).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                    <select value={st.id} onChange={e => {
+                      let next = e.target.value
+                      if (next === 'GALLON_TO_GET' && !needsPickup(order)) {
+                        next = 'OUT_FOR_DELIVERY'
+                        showToast && showToast('New/Borrow orders skip Gallon Pick Up → Out for Delivery')
+                      }
+                      handleStatusChange(order.orderId, next)
+                    }} style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 600, background: 'var(--white)' }}>
+                      {getValidStatuses(order).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                     </select>
+                    {!needsPickup(order) && <div style={{ fontSize: 10, color: '#92400e', fontWeight: 600, marginTop: 2 }}>No pick-up</div>}
                   </td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -820,20 +846,34 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           <div style={{ background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
             <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--slate-900)' }}>How order status works</h3>
             <div style={{ display: 'grid', gap: 8, fontSize: 13, color: 'var(--slate-600)', lineHeight: 1.5 }}>
-              <div>Order status is now stored in Supabase column <code>orders.status</code> — no automatic timers. Update via dropdown or detail view.</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
-                <span className="pill" style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}>Pending</span>
-                <span>→</span>
-                <span className="pill" style={{ background: '#e0f2fe', color: '#0c4a6e', borderColor: '#bae6fd' }}>Confirmed</span>
-                <span>→</span>
-                <span className="pill" style={{ background: '#ccfbf1', color: '#0f766e', borderColor: '#99f6e4' }}>Pick Up</span>
-                <span>→</span>
-                <span className="pill" style={{ background: '#dcfce7', color: '#065f46', borderColor: '#a7f3d0' }}>Out for delivery</span>
-                <span>→</span>
-                <span className="pill" style={{ background: '#e2e8f0', color: '#334155', borderColor: '#cbd5e1' }}>Delivered</span>
+              <div>Order status is now stored in Supabase column <code>orders.status</code> — no automatic timers. Update via dropdown or detail view. <b>New Gallon</b> (<code>NEEDS_GALLON</code>) and <b>Borrowed</b> (<code>BORROW</code>) skip <code>GALLON_TO_GET</code>.</div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
+                  <span style={{ fontSize: 11, color: 'var(--slate-500)', fontWeight: 800 }}>WITH Gallon:</span>
+                  <span className="pill" style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}>Pending</span>
+                  <span>→</span>
+                  <span className="pill" style={{ background: '#e0f2fe', color: '#0c4a6e', borderColor: '#bae6fd' }}>Confirmed</span>
+                  <span>→</span>
+                  <span className="pill" style={{ background: '#ccfbf1', color: '#0f766e', borderColor: '#99f6e4' }}>Pick Up</span>
+                  <span>→</span>
+                  <span className="pill" style={{ background: '#dcfce7', color: '#065f46', borderColor: '#a7f3d0' }}>Out for delivery</span>
+                  <span>→</span>
+                  <span className="pill" style={{ background: '#e2e8f0', color: '#334155', borderColor: '#cbd5e1' }}>Delivered</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
+                  <span style={{ fontSize: 11, color: '#92400e', fontWeight: 800 }}>NEW / BORROW:</span>
+                  <span className="pill" style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}>Pending</span>
+                  <span>→</span>
+                  <span className="pill" style={{ background: '#e0f2fe', color: '#0c4a6e', borderColor: '#bae6fd' }}>Confirmed</span>
+                  <span>→</span>
+                  <span className="pill" style={{ background: '#dcfce7', color: '#065f46', borderColor: '#a7f3d0' }}>Out for delivery</span>
+                  <span>→</span>
+                  <span className="pill" style={{ background: '#e2e8f0', color: '#334155', borderColor: '#cbd5e1' }}>Delivered</span>
+                  <span style={{ fontSize: 10, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 6px' }}>No Pick Up</span>
+                </div>
               </div>
               <div style={{ fontSize: 12, color: 'var(--slate-500)', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
-                Cancel is only allowed while status is Pending / Confirmed / Gallon Pick Up. Delivered orders cannot be canceled.
+                Cancel is only allowed while status is Pending / Confirmed / Gallon Pick Up (or Confirmed for New/Borrow). Delivered orders cannot be canceled.
               </div>
             </div>
           </div>
