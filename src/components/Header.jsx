@@ -1,7 +1,7 @@
 import ThemeToggle from './ThemeToggle'
 import { exportCalendarExcel, exportAllBackup } from '../utils/export'
 
-export default function Header({ onPrint, theme, onToggleTheme, printDateLabel, events, inventory, dbStatus, syncing }) {
+export default function Header({ onPrint, theme, onToggleTheme, printDateLabel, events, inventory, dbStatus, syncing, soundOn, onToggleSound }) {
   return (
     <header className="app-header">
       <div className="header-left">
@@ -17,6 +17,7 @@ export default function Header({ onPrint, theme, onToggleTheme, printDateLabel, 
       </div>
       <div className="header-actions">
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+        <button className="btn btn-ghost" onClick={onToggleSound} title={soundOn ? 'Sound ON — click to mute' : 'Sound OFF — click to enable'} style={{ background: soundOn ? 'var(--blue-50)' : 'var(--white)', borderColor: soundOn ? 'var(--blue-100)' : 'var(--slate-200)' }}>{soundOn ? '🔔 Sound' : '🔕 Muted'}</button>
         <button className="btn btn-ghost" onClick={onPrint} title={`Print daily sheet for ${printDateLabel}`}>
           🖨 Print Sheet
         </button>

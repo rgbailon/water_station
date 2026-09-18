@@ -10,7 +10,7 @@ import ExpensesView from './components/ExpensesView'
 import ReportsView from './components/ReportsView'
 import DailyPrintSheet from './components/DailyPrintSheet'
 import { initialEvents, inventoryItems as initialInventory, hiramRecords as initialHiram, expensesList as initialExpenses } from './data/mockData'
-import { defaultSampleOrders, ORDER_STORE_SPEC, sampleProducts, recomputeOrderTotals, needsPickup } from './data/ordersData'
+import { defaultSampleOrders, ORDER_STORE_SPEC, sampleProducts, recomputeOrderTotals, needsPickup, getOrderStatus } from './data/ordersData'
 import DashboardView from './components/DashboardView'
 import OrdersView from './components/OrdersView'
 import MessagesView from './components/MessagesView'
@@ -18,6 +18,7 @@ import ProductsView from './components/ProductsView'
 import { addMonths, subMonths, formatMonthYear, formatISO, parseDate, getEventsForDate, peso } from './utils/dateUtils'
 import { isSupabaseConfigured, getSupabaseConfig } from './lib/supabaseClient'
 import * as DB from './lib/db'
+import { playNewOrderSound, primeSoundOnGesture, isSoundEnabled, toggleSoundEnabled } from './utils/sound'
 
 export default function App() {
   const [theme, toggleTheme] = useTheme()
@@ -60,11 +61,26 @@ export default function App() {
     } catch {}
     return defaultSampleOrders
   })
+  // sound for PENDING new orders — live realtime
+  const recentOrderIds = useRef(new Set())
+  const ordersRef = useRef(orders)
+  const chimedPendingRef = useRef(new Set())
+  const prevPendingIdsRef = useRef(new Set())
+  const [soundOn, setSoundOn] = useState(() => isSoundEnabled())
+  useEffect(() => { ordersRef.current = orders }, [orders])
+  const maybeChimeForPending = (ids) => {
+    const fresh = (ids || []).filter(id => !chimedPendingRef.current.has(id))
+    ids.forEach(id => chimedPendingRef.current.add(id))
+    const toPlay = fresh.filter(id => !recentOrderIds.current.has(id))
+    if (toPlay.length) { try { playNewOrderSound() } catch {} return true }
+    return false
+  }
 
   const showToast = (msg) => {
     setToast(msg)
     setTimeout(() => setToast(null), 2400)
   }
+  useEffect(() => { primeSoundOnGesture() }, [])
 
   // ---- Supabase initial load + realtime ----
   useEffect(() => {
@@ -134,8 +150,27 @@ export default function App() {
         })
         if (payload.eventType === 'DELETE') setInventory(prev => prev.filter(p => p.id !== payload.old.id))
       }))
-      unsubs.push(DB.subscribeTable('orders', () => {
-        DB.fetchOrders().then(rows => { if (rows?.length) setOrders(rows) }).catch(()=>{})
+      unsubs.push(DB.subscribeTable('orders', payload => {
+        const isPendingInsert = payload?.eventType === 'INSERT' && String(payload.new?.status).toUpperCase() === 'PENDING'
+        const isPendingUpdate = payload?.eventType === 'UPDATE' && String(payload.new?.status).toUpperCase() === 'PENDING' && String(payload.old?.status).toUpperCase() !== 'PENDING'
+        if ((isPendingInsert || isPendingUpdate) && hasSynced.current) {
+          const nid = payload.new?.order_id
+          if (nid && maybeChimeForPending([nid])) showToast(`🔔 New order ${nid} — ${payload.new?.customer_name || ''} • PENDING`)
+        }
+        DB.fetchOrders().then(rows => {
+          if (rows?.length) {
+            if (hasSynced.current) {
+              const prevIds = new Set((ordersRef.current || []).map(o => o.orderId))
+              const newOnes = rows.filter(r => !prevIds.has(r.orderId))
+              const newPending = newOnes.filter(o => getOrderStatus(o).id === 'PENDING').map(o=>o.orderId)
+              if (newPending.length && maybeChimeForPending(newPending)) {
+                newPending.forEach(id => { const o = rows.find(r=>r.orderId===id); showToast(`🔔 New order ${id} — ${o?.customerName || ''} • PENDING`) })
+              }
+            }
+            setOrders(rows)
+            try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(rows)) } catch {}
+          }
+        }).catch(()=>{})
       }))
       unsubs.push(DB.subscribeTable('messages', payload => {
         if (payload.eventType === 'INSERT') setMessages(prev => [DB.messageFromRow(payload.new), ...prev.filter(m => String(m.id) !== String(payload.new.id))])
@@ -163,6 +198,14 @@ export default function App() {
   useEffect(() => {
     if (syncing) console.log('[Supabase] Syncing…')
   }, [syncing])
+  // watch PENDING count as extra safety (if realtime missed)
+  useEffect(() => {
+    const curIds = new Set(orders.filter(o => getOrderStatus(o).id === 'PENDING').map(o => o.orderId))
+    if (!hasSynced.current) { prevPendingIdsRef.current = curIds; curIds.forEach(id=>chimedPendingRef.current.add(id)); return }
+    const newPending = [...curIds].filter(id => !prevPendingIdsRef.current.has(id))
+    if (newPending.length && maybeChimeForPending(newPending)) showToast(`🔔 ${newPending.length} new pending — ${newPending.join(', ')}`)
+    prevPendingIdsRef.current = curIds
+  }, [orders])
 
   const monthEvents = useMemo(() => events.filter(e => e.date.startsWith(formatISO(currentDate).slice(0,7))), [events, currentDate])
   const selectedISO = formatISO(selectedDate)
@@ -355,6 +398,11 @@ export default function App() {
     let id = newOrder.orderId
     while (orders.some(o => o.orderId === id)) id = `WFR-${Math.floor(1000 + Math.random() * 9000)}`
     const order = { ...newOrder, orderId: id, status: newOrder.status || 'PENDING', payment_status: newOrder.payment_status || 'UNPAID' }
+    if (String(order.status).toUpperCase() === 'PENDING') {
+      recentOrderIds.current.add(id); chimedPendingRef.current.add(id)
+      setTimeout(()=>recentOrderIds.current.delete(id),15000)
+      try { playNewOrderSound() } catch {}
+    }
     setOrders(prev => {
       const next = [order, ...prev]
       try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(next)) } catch {}
@@ -438,6 +486,12 @@ export default function App() {
       try { await DB.markMessageRead(id, isRead) } catch {}
     }
   }
+  const handleToggleSound = () => {
+    const next = toggleSoundEnabled()
+    setSoundOn(next)
+    showToast(next ? '🔔 Sound ON' : '🔕 Sound OFF')
+    if (next) try { playNewOrderSound() } catch {}
+  }
 
   const toggleSidebar = () => {
     setSidebarCollapsed(v => {
@@ -476,7 +530,7 @@ export default function App() {
 
   return (
     <>
-      <Header onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} dbStatus={dbStatus} syncing={syncing} />
+      <Header onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} dbStatus={dbStatus} syncing={syncing} soundOn={soundOn} onToggleSound={handleToggleSound} />
 
       <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <Sidebar active={activeTab} onChange={handleNavChange} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />

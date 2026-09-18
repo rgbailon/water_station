@@ -687,7 +687,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
         })}
       </div>
       <div className="table-wrap" style={{ paddingTop: 0 }}>
-        <table className="table">
+        <table className="table orders-table">
           <thead>
             <tr>
               <th>Order number</th>
@@ -705,12 +705,12 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           <tbody>
             {filtered.length === 0 ? (
               <tr><td colSpan={10} style={{ textAlign: 'center', padding: 24, color: 'var(--slate-500)' }}>No orders found.</td></tr>
-            ) : filtered.map(order => {
+            ) : filtered.map((order) => {
               const st = getOrderStatus(order)
               const canCancel = canCancelOrder(order)
               const borrowed = order.borrowedCount ?? order.borrowed_count ?? 0
               return (
-                <tr key={order.orderId} style={borrowed > 0 ? { background: '#fffbeb' } : undefined}>
+                <tr key={order.orderId}>
                   <td>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <b style={{ fontFamily: 'var(--mono)', color: 'var(--slate-900)', fontSize: 13 }}>{order.orderId}</b>

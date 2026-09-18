@@ -214,6 +214,13 @@
   vertical-align: middle;
   background: var(--slate-50);
 }
+.table.orders-table td { background: transparent; }
+.table.orders-table tr:hover td { filter: brightness(0.98); }
+.table.orders-table tbody tr:nth-child(odd) { background: #ffffff; }
+.table.orders-table tbody tr:nth-child(even) { background: #f1f5f9; }
+[data-theme="dark"] .table.orders-table td { background: transparent; }
+[data-theme="dark"] .table.orders-table tbody tr:nth-child(odd) { background: #0f172a; }
+[data-theme="dark"] .table.orders-table tbody tr:nth-child(even) { background: #1e293b; }
 .table tr:last-child td:first-child { border-radius: 0 0 0 10px; }
 .table tr:last-child td:last-child { border-radius: 0 0 10px 0; }
 .pill {
