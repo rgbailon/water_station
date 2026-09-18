@@ -415,6 +415,12 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
       return v === null ? true : v === 'true'
     } catch { return true }
   })
+  const [infoCollapsed, setInfoCollapsed] = useState(() => {
+    try {
+      const v = localStorage.getItem('ordersInfoCollapsed')
+      return v === null ? true : v === 'true'
+    } catch { return true }
+  })
 
   const stats = useMemo(() => {
     const total = orders.length
@@ -704,39 +710,56 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
         </table>
       </div>
 
-      <div style={{ margin: '0 18px 18px', display: 'grid', gap: 14, gridTemplateColumns: '1fr 1fr' }}>
-        <div style={{ background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
-          <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--slate-900)' }}>How order status works</h3>
-          <div style={{ display: 'grid', gap: 8, fontSize: 13, color: 'var(--slate-600)', lineHeight: 1.5 }}>
-            <div>Order status is now stored in Supabase column <code>orders.status</code> — no automatic timers. Update via dropdown or detail view.</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
-              <span className="pill" style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}>Pending</span>
-              <span>→</span>
-              <span className="pill" style={{ background: '#e0f2fe', color: '#0c4a6e', borderColor: '#bae6fd' }}>Confirmed</span>
-              <span>→</span>
-              <span className="pill" style={{ background: '#ccfbf1', color: '#0f766e', borderColor: '#99f6e4' }}>Pick Up</span>
-              <span>→</span>
-              <span className="pill" style={{ background: '#dcfce7', color: '#065f46', borderColor: '#a7f3d0' }}>Out for delivery</span>
-              <span>→</span>
-              <span className="pill" style={{ background: '#e2e8f0', color: '#334155', borderColor: '#cbd5e1' }}>Delivered</span>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--slate-500)', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
-              Cancel is only allowed while status is Pending / Confirmed / Gallon Pick Up. Delivered orders cannot be canceled.
-            </div>
-          </div>
-        </div>
-        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: 14 }}>
-          <h3 style={{ margin: '0 0 8px', fontSize: 13, color: '#92400e' }}>🤝 Borrowed audit</h3>
-          <div style={{ fontSize: 13, color: '#92400e', lineHeight: 1.6, display: 'grid', gap: 8 }}>
-            <div><code>orders.borrowed_count</code> is audited per order — sum of Borrow gallons. Use Borrowed filter above or Borrowed column to monitor. Trigger <code>order_items_borrowed_sync</code> keeps it accurate.</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <span className="pill amber">Borrowed monitored</span>
-              <span className="pill green">DB synced</span>
-              <span className="pill slate">{stats.totalBorrowed} gals total</span>
-            </div>
-          </div>
-        </div>
+      <div style={{ margin: '0 18px', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0 6px' }}>
+        <button
+          onClick={() => setInfoCollapsed(v => { const n = !v; try { localStorage.setItem('ordersInfoCollapsed', String(n)) } catch {} return n })}
+          className="btn-xs"
+          style={{ padding: '6px 10px', fontSize: 12, fontWeight: 700, background: infoCollapsed ? 'var(--white)' : 'var(--slate-900)', color: infoCollapsed ? 'var(--slate-700)' : 'var(--white)', borderColor: 'var(--slate-200)' }}
+          aria-expanded={!infoCollapsed}
+          title={infoCollapsed ? 'Show help panels' : 'Hide help panels'}
+        >
+          {infoCollapsed ? '▶ Show help' : '▼ Hide help'}
+        </button>
+        <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>
+          {infoCollapsed ? 'Help hidden — status & borrowed audit' : 'Help — how status & borrowed audit work'}
+        </span>
+        {!infoCollapsed && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--slate-400)' }}>Click to hide and reduce clutter</span>}
       </div>
+      {!infoCollapsed && (
+        <div style={{ margin: '0 18px 18px', display: 'grid', gap: 14, gridTemplateColumns: '1fr 1fr' }}>
+          <div style={{ background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--slate-900)' }}>How order status works</h3>
+            <div style={{ display: 'grid', gap: 8, fontSize: 13, color: 'var(--slate-600)', lineHeight: 1.5 }}>
+              <div>Order status is now stored in Supabase column <code>orders.status</code> — no automatic timers. Update via dropdown or detail view.</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
+                <span className="pill" style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}>Pending</span>
+                <span>→</span>
+                <span className="pill" style={{ background: '#e0f2fe', color: '#0c4a6e', borderColor: '#bae6fd' }}>Confirmed</span>
+                <span>→</span>
+                <span className="pill" style={{ background: '#ccfbf1', color: '#0f766e', borderColor: '#99f6e4' }}>Pick Up</span>
+                <span>→</span>
+                <span className="pill" style={{ background: '#dcfce7', color: '#065f46', borderColor: '#a7f3d0' }}>Out for delivery</span>
+                <span>→</span>
+                <span className="pill" style={{ background: '#e2e8f0', color: '#334155', borderColor: '#cbd5e1' }}>Delivered</span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--slate-500)', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
+                Cancel is only allowed while status is Pending / Confirmed / Gallon Pick Up. Delivered orders cannot be canceled.
+              </div>
+            </div>
+          </div>
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: 14 }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 13, color: '#92400e' }}>🤝 Borrowed audit</h3>
+            <div style={{ fontSize: 13, color: '#92400e', lineHeight: 1.6, display: 'grid', gap: 8 }}>
+              <div><code>orders.borrowed_count</code> is audited per order — sum of Borrow gallons. Use Borrowed filter above or Borrowed column to monitor. Trigger <code>order_items_borrowed_sync</code> keeps it accurate.</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <span className="pill amber">Borrowed monitored</span>
+                <span className="pill green">DB synced</span>
+                <span className="pill slate">{stats.totalBorrowed} gals total</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selected && (
         <OrderDetailModal
