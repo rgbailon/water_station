@@ -195,7 +195,6 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
             <span style={{ width:8, height:8, borderRadius:999, background:'#22c55e', display:'inline-block' }}></span> {monthEvents.length} events • {inventory.length} SKUs
           </div>
           <button className="btn btn-ghost" style={{ background:'white', color:'var(--slate-700)', border:'1px solid var(--slate-200)', padding:'9px 14px', fontSize:'13px', fontWeight:600 }} onClick={()=> exportDashboardExcel({ events, inventory, currentDate })} title="Download spreadsheet">⬇ Download</button>
-          <button className="btn btn-primary" style={{ background:'var(--blue-600)', color:'white' }} onClick={()=>onAddEntry && onAddEntry()}><span className="plus">+</span> New Entry</button>
         </div>
       </div>
 

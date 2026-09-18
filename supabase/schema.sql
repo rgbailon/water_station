@@ -198,9 +198,13 @@ create index if not exists idx_orders_payment_status on public.orders(payment_st
 create or replace function public.trg_orders_status_sync()
 returns trigger language plpgsql as $$
 begin
-  if new.is_canceled then
+  -- canceled orders are always unpaid (audit rule)
+  if new.status = 'CANCELED' or new.is_canceled then
     new.status := 'CANCELED';
+    new.is_canceled := true;
     new.is_delivered := false;
+    new.payment_status := 'UNPAID';
+    new.is_paid := false;
   elsif new.is_delivered and new.status != 'CANCELED' then
     if new.status in ('PENDING','CONFIRMED','GALLON_TO_GET','OUT_FOR_DELIVERY') then
       new.status := 'DELIVERED';
@@ -210,6 +214,8 @@ begin
     if new.status = 'CANCELED' then
       new.is_canceled := true;
       new.is_delivered := false;
+      new.payment_status := 'UNPAID';
+      new.is_paid := false;
     elsif new.status = 'DELIVERED' then
       new.is_delivered := true;
       new.is_canceled := false;
@@ -219,8 +225,11 @@ begin
     end if;
   end if;
   new.is_borrowed := coalesce(new.borrowed_count,0) > 0;
-  -- payment: handle both payment_status and is_paid changes, with OLD comparison
-  if TG_OP = 'INSERT' then
+  -- payment: handle both payment_status and is_paid changes, with OLD comparison (but canceled always unpaid)
+  if new.status = 'CANCELED' then
+    new.payment_status := 'UNPAID';
+    new.is_paid := false;
+  elsif TG_OP = 'INSERT' then
     new.is_paid := (new.payment_status = 'PAID');
   else
     if new.payment_status is distinct from old.payment_status then
@@ -230,6 +239,11 @@ begin
     else
       new.is_paid := (new.payment_status = 'PAID');
     end if;
+  end if;
+  -- final guard: canceled must be unpaid
+  if new.status = 'CANCELED' then
+    new.payment_status := 'UNPAID';
+    new.is_paid := false;
   end if;
   new.updated_at := now();
   return new;

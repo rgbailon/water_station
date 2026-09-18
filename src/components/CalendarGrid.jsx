@@ -30,16 +30,16 @@ export default function CalendarGrid({ currentDate, events, selectedDate, onSele
                   key={iso}
                   className={`cal-cell ${isOutside ? 'outside' : ''} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}`}
                   onClick={() => onSelectDate(day)}
+                  style={{ cursor: 'default' }}
                 >
                   <span className="cell-watermark" aria-hidden>{format(day, 'd')}</span>
-                  <span className="cell-plus" onClick={(e) => { e.stopPropagation(); onAddClick(day)}}>+</span>
                   <div className="cell-events">
                     {evs.slice(0, 3).map(ev => (
                       <div
                         key={ev.id}
                         className={`event-badge ${ev.type}`}
-                        onClick={(e) => { e.stopPropagation(); onEventClick(ev)}}
                         title={`${ev.title} - ${ev.customer}`}
+                        style={{ cursor: 'default' }}
                       >
                         <span className="e-dot"></span>
                         <span className="txt" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.type === 'sale' ? peso(ev.amount) : ev.title.length > 14 ? ev.title.slice(0,14)+'…' : ev.title}</span>
