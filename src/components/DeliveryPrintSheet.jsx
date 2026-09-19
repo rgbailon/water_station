@@ -73,11 +73,13 @@ export default function DeliveryPrintSheet({ orders = [], onClose, singleOrder =
                 <thead>
                   <tr>
                     <th style={{ width: '28px' }}>#</th>
-                    <th style={{ width: '18%' }}>Order / Customer</th>
-                    <th style={{ width: '22%' }}>Address & Phone</th>
+                    <th style={{ width: '16%' }}>Order / Customer</th>
+                    <th style={{ width: '20%' }}>Address & Phone</th>
                     <th>Items to deliver</th>
-                    <th style={{ width: '11%' }}>Amount</th>
-                    <th style={{ width: '10%' }}>Schedule</th>
+                    <th style={{ width: '10%' }}>Amount</th>
+                    <th style={{ width: '48px' }}>☐ Paid</th>
+                    <th style={{ width: '48px' }}>☐ Unpaid</th>
+                    <th style={{ width: '9%' }}>Schedule</th>
                     <th style={{ width: '42px' }}>✓ Delivered</th>
                   </tr>
                 </thead>
@@ -113,62 +115,24 @@ export default function DeliveryPrintSheet({ orders = [], onClose, singleOrder =
                         </td>
                         <td style={{ textAlign: 'center', fontSize: '7.5pt' }}>
                           <div style={{ fontWeight: 800 }}>{peso(getOrderDisplayTotal(o))}{getOrderDisplayTotal(o)!==o.total && <span style={{ fontSize:'6pt', color:'#92400e' }}> container</span>}</div>
-                          <div style={{ fontSize: '6.5pt', color: getPaymentStatus(o).id==='PAID'?'#065f46':'#92400e', fontWeight: 700, background: getPaymentStatus(o).id==='PAID'?'#dcfce7':'#fef3c7', border: `1px solid ${getPaymentStatus(o).id==='PAID'?'#a7f3d0':'#fde68a'}`, borderRadius: 3, padding: '0 3px', display: 'inline-block' }}>{getPaymentStatus(o).label}</div>
                           <div style={{ fontSize: '6.5pt', color: '#065f46', fontWeight: 600 }}>{o.payment}</div>
                           <div style={{ fontSize: '6.5pt', color: '#64748b' }}>{o.schedule} • {getOrderStatus(o).label}</div>
                         </td>
+                        <td className="check" style={{ textAlign: 'center', fontSize: '11pt' }}>☐</td>
+                        <td className="check" style={{ textAlign: 'center', fontSize: '11pt' }}>☐</td>
                         <td style={{ fontSize: '7pt', textAlign: 'center' }}>{o.schedule}</td>
                         <td className="check">☐</td>
                       </tr>
                     )
                   })}
-                  {list.length < 8 && <BlankRows count={Math.max(2, 8 - list.length)} cols={7} />}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="print-section">
-              <h2>💳 Payment Checklist <small>— check PAID or UNPAID per order, audit accurately</small></h2>
-              <table className="print-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '28px' }}>#</th>
-                    <th style={{ width: '22%' }}>Order / Customer</th>
-                    <th style={{ width: '12%' }}>Amount</th>
-                    <th style={{ width: '14%' }}>DB Status</th>
-                    <th style={{ width: '48px' }}>☐ Paid</th>
-                    <th style={{ width: '48px' }}>☐ Unpaid</th>
-                    <th>Cash Collected / Remarks</th>
-                    <th style={{ width: '70px' }}>Signature</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.map((o, idx) => {
-                    const ps = getPaymentStatus(o).id
-                    const dispTotal = getOrderDisplayTotal(o)
-                    return (
-                      <tr key={o.orderId}>
-                        <td className="num">{idx + 1}</td>
-                        <td><div style={{ fontWeight: 700, fontSize: '7.5pt' }}>{o.orderId}</div><div style={{ fontSize: '7pt' }}>{o.customerName}</div><div style={{ fontSize: '6.5pt', color: '#64748b' }}>{o.phone || '—'}</div></td>
-                        <td style={{ textAlign: 'center', fontWeight: 800, fontSize: '7.5pt' }}>{peso(dispTotal)}{dispTotal!==o.total && <div style={{ fontSize:'6pt', color:'#92400e' }}>container</div>}</td>
-                        <td style={{ textAlign: 'center' }}><span style={{ fontSize: '7pt', background: ps==='PAID'?'#dcfce7':'#fef3c7', border: `1px solid ${ps==='PAID'?'#a7f3d0':'#fde68a'}`, borderRadius: 3, padding: '0 4px', fontWeight: 700, color: ps==='PAID'?'#065f46':'#92400e' }}>{ps}</span></td>
-                        <td className="check" style={{ textAlign: 'center', fontSize: '10pt' }}>☐</td>
-                        <td className="check" style={{ textAlign: 'center', fontSize: '10pt' }}>☐</td>
-                        <td style={{ fontSize: '7pt' }}>&nbsp;</td>
-                        <td>&nbsp;</td>
-                      </tr>
-                    )
-                  })}
-                  {list.length < 6 && <BlankRows count={Math.max(2, 6 - list.length)} cols={8} />}
                 </tbody>
               </table>
               <div style={{ marginTop: 6, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '6px 8px', fontSize: '7.5pt', color: '#92400e', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <span><b>Paid:</b> {paidOrders} orders • {peso(paidAmount)}</span>
                 <span><b>Unpaid:</b> {unpaidOrders} orders • {peso(unpaidAmount)}</span>
                 <span><b>Total:</b> {list.length} orders • {peso(totalAmount)}</span>
-                <span style={{ marginLeft: 'auto', fontStyle: 'italic' }}>Rider must check one per order — audited in Supabase `orders.payment_status`</span>
+                <span style={{ marginLeft: 'auto', fontStyle: 'italic' }}>Rider checks ☐ Paid or ☐ Unpaid — audited in `orders.payment_status`</span>
               </div>
-              <div style={{ marginTop: 4, fontSize: '6.5pt', color: '#64748b', fontStyle: 'italic' }}>Instructions: For each delivery, check ☐ Paid if cash/GCash received, or ☐ Unpaid if to collect later. Write cash amount and get signature. Return sheet for audit.</div>
             </div>
 
             <div className="print-section">

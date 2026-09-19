@@ -114,8 +114,6 @@ export default function PickUpPrintSheet({ orders = [], onClose, singleOrder = n
                       </tr>
                     )
                   })}
-                  {/* fill blank rows for handwritten additions */}
-                  {list.length < 8 && <BlankRows count={Math.max(2, 8 - list.length)} cols={7} />}
                 </tbody>
               </table>
             </div>
