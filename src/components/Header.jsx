@@ -1,7 +1,21 @@
+import { useState, useEffect } from 'react'
 import ThemeToggle from './ThemeToggle'
 import { exportCalendarExcel, exportAllBackup } from '../utils/export'
 
-export default function Header({ onPrint, theme, onToggleTheme, printDateLabel, events, inventory, dbStatus, syncing, soundOn, onToggleSound }) {
+function timeAgo(ts) {
+  if (!ts) return ''
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000))
+  if (s < 5) return 'just now'
+  if (s < 60) return `${s}s ago`
+  return `${Math.floor(s / 60)}m ago`
+}
+
+export default function Header({ onPrint, theme, onToggleTheme, printDateLabel, events, inventory, dbStatus, syncing, soundOn, onToggleSound, lastSyncAt }) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick(x => x + 1), 5000)
+    return () => clearInterval(t)
+  }, [])
   return (
     <header className="app-header">
       <div className="header-left">
@@ -12,6 +26,11 @@ export default function Header({ onPrint, theme, onToggleTheme, printDateLabel, 
             <span className="dot" style={{ background: dbStatus?.color || '#22c55e' }}></span>
             {dbStatus?.label || 'Water Refilling Station • Irosin, Sorsogon • Offline Ready'}
             {syncing && <span style={{ marginLeft: 8, background: '#0f172a', color: 'white', padding: '1px 6px', borderRadius: 999, fontSize: 10 }}>Syncing…</span>}
+            {!!lastSyncAt && !syncing && (
+              <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--slate-500)', fontWeight: 600 }} title="Statuses auto-refresh continuously — no manual reload needed">
+                <span className="dot" style={{ background: '#22c55e' }}></span> Live • {timeAgo(lastSyncAt)}
+              </span>
+            )}
           </p>
         </div>
       </div>

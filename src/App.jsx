@@ -197,8 +197,20 @@ export default function App() {
     return () => { cancelled = true; unsubs.forEach(fn => { try{ fn() }catch{} }) }
   }, [])
 
-  // ---- Auto-update: polling + focus refresh (online) / cross-tab sync (offline) ----
-  // Keeps badges and all views live without manual refresh. Silent — no toasts.
+  // ---- Auto-update: continuous polling + focus refresh (online) / cross-tab sync (offline) ----
+  // Statuses refresh on their own without manual reload:
+  //   - realtime subscriptions (above) push changes instantly when connected
+  //   - FAST lane every 10s re-fetches order + message statuses (guides, badges, sounds stay live)
+  //   - SLOW lane every 60s re-fetches catalog, stock, calendar, ledger, expenses
+  // Silent — no toasts. `lastSyncAt` drives the Live indicator in the header.
+  const [lastSyncAt, setLastSyncAt] = useState(null)
+  const firstSyncRender = useRef(true)
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return
+    if (firstSyncRender.current) { firstSyncRender.current = false; return }
+    setLastSyncAt(Date.now())
+  }, [orders, messages, inventory, products, hiramRecords, expenses, events])
+
   useEffect(() => {
     if (!isSupabaseConfigured()) {
       // Offline: another tab on this device may change orders — pick it up live
@@ -214,45 +226,57 @@ export default function App() {
       return () => window.removeEventListener('storage', onStorage)
     }
     let stopped = false
-    let fetching = false
+    let fastFetching = false
+    let slowFetching = false
     let lastFocusFetch = 0
-    const refreshAll = async () => {
-      if (stopped || fetching) return
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
-      fetching = true
+    const isVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible'
+
+    const refreshFast = async () => {
+      if (stopped || fastFetching || !isVisible()) return
+      fastFetching = true
       try {
-        const results = await Promise.allSettled([
-          DB.fetchProducts().catch(() => null),
-          DB.fetchInventory().catch(() => null),
-          DB.fetchEvents().catch(() => null),
-          DB.fetchHiram().catch(() => null),
-          DB.fetchExpenses().catch(() => null),
+        const [ordR, msgR] = await Promise.allSettled([
           DB.fetchOrders().catch(() => null),
           DB.fetchMessages().catch(() => null),
         ])
         if (stopped) return
-        const [prodR, invR, evR, hiramR, expR, ordR, msgR] = results
-        if (prodR.status === 'fulfilled' && Array.isArray(prodR.value) && prodR.value.length) setProducts(prodR.value)
-        if (invR.status === 'fulfilled' && Array.isArray(invR.value) && invR.value.length) setInventory(invR.value)
-        if (evR.status === 'fulfilled' && Array.isArray(evR.value) && evR.value.length) setEvents(evR.value)
-        if (hiramR.status === 'fulfilled' && Array.isArray(hiramR.value) && hiramR.value.length) setHiramRecords(hiramR.value)
-        if (expR.status === 'fulfilled' && Array.isArray(expR.value) && expR.value.length) setExpenses(expR.value)
         if (ordR.status === 'fulfilled' && Array.isArray(ordR.value) && ordR.value.length) {
           setOrders(ordR.value)
           try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(ordR.value)) } catch {}
         }
         if (msgR.status === 'fulfilled' && Array.isArray(msgR.value)) setMessages(msgR.value)
-      } catch {} finally { fetching = false }
+      } catch {} finally { fastFetching = false }
     }
-    const timer = setInterval(refreshAll, 45000)
+    const refreshSlow = async () => {
+      if (stopped || slowFetching || !isVisible()) return
+      slowFetching = true
+      try {
+        const [prodR, invR, evR, hiramR, expR] = await Promise.allSettled([
+          DB.fetchProducts().catch(() => null),
+          DB.fetchInventory().catch(() => null),
+          DB.fetchEvents().catch(() => null),
+          DB.fetchHiram().catch(() => null),
+          DB.fetchExpenses().catch(() => null),
+        ])
+        if (stopped) return
+        if (prodR.status === 'fulfilled' && Array.isArray(prodR.value) && prodR.value.length) setProducts(prodR.value)
+        if (invR.status === 'fulfilled' && Array.isArray(invR.value) && invR.value.length) setInventory(invR.value)
+        if (evR.status === 'fulfilled' && Array.isArray(evR.value) && evR.value.length) setEvents(evR.value)
+        if (hiramR.status === 'fulfilled' && Array.isArray(hiramR.value) && hiramR.value.length) setHiramRecords(hiramR.value)
+        if (expR.status === 'fulfilled' && Array.isArray(expR.value) && expR.value.length) setExpenses(expR.value)
+      } catch {} finally { slowFetching = false }
+    }
+    const fastTimer = setInterval(refreshFast, 10000)
+    const slowTimer = setInterval(refreshSlow, 60000)
     const onFocus = () => {
       const now = Date.now()
       if (now - lastFocusFetch < 5000) return
       lastFocusFetch = now
-      refreshAll()
+      refreshFast()
+      refreshSlow()
     }
     window.addEventListener('focus', onFocus)
-    return () => { stopped = true; clearInterval(timer); window.removeEventListener('focus', onFocus) }
+    return () => { stopped = true; clearInterval(fastTimer); clearInterval(slowTimer); window.removeEventListener('focus', onFocus) }
   }, [])
 
   // console-only status (UI banner removed per user request)
@@ -610,7 +634,7 @@ export default function App() {
 
   return (
     <>
-      <Header onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} dbStatus={dbStatus} syncing={syncing} soundOn={soundOn} onToggleSound={handleToggleSound} />
+      <Header onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} dbStatus={dbStatus} syncing={syncing} soundOn={soundOn} onToggleSound={handleToggleSound} lastSyncAt={lastSyncAt} />
 
       <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <Sidebar active={activeTab} onChange={handleNavChange} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} badges={navBadges} />

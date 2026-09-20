@@ -173,7 +173,7 @@ create table if not exists public.orders (
   payment_method text       not null default 'Cash on Delivery' check (payment_method in ('Cash on Delivery','GCash','Maya')),
   schedule      text        not null default 'Today' check (schedule in ('Today','Tomorrow')),
   notes         text        not null default '',
-  status        text        not null default 'PENDING' check (status in ('PENDING','CONFIRMED','TO_PICK_UP','GALLON_TO_GET','GALLON_RECEIVED','PREPARING','OUT_FOR_DELIVERY','DELIVERED','CANCELED')),
+  status        text        not null default 'PENDING' check (status in ('PENDING','CONFIRMED','TO_PICK_UP','GALLON_TO_GET','PREPARING','OUT_FOR_DELIVERY','DELIVERED','CANCELED')),
   -- audit: borrowed gallons in this order (sum of order_items where is_borrow=true)
   borrowed_count integer    not null default 0 check (borrowed_count >= 0),
   is_borrowed   boolean     not null default false,
@@ -198,9 +198,11 @@ create index if not exists idx_orders_payment_status on public.orders(payment_st
 create or replace function public.trg_orders_status_sync()
 returns trigger language plpgsql as $$
 begin
-  -- normalize legacy "Gallon Pick Up" id to new "Gallon Received"
+  -- normalize legacy ids to current flow (pickup queue → TO_PICK_UP, collected → PREPARING)
   if new.status = 'GALLON_TO_GET' then
-    new.status := 'GALLON_RECEIVED';
+    new.status := 'TO_PICK_UP';
+  elsif new.status = 'GALLON_RECEIVED' then
+    new.status := 'PREPARING';
   end if;
   -- canceled orders are always unpaid (audit rule)
   if new.status = 'CANCELED' or new.is_canceled then
@@ -210,7 +212,7 @@ begin
     new.payment_status := 'UNPAID';
     new.is_paid := false;
   elsif new.is_delivered and new.status != 'CANCELED' then
-    if new.status in ('PENDING','CONFIRMED','TO_PICK_UP','GALLON_TO_GET','GALLON_RECEIVED','PREPARING','OUT_FOR_DELIVERY') then
+    if new.status in ('PENDING','CONFIRMED','TO_PICK_UP','GALLON_TO_GET','PREPARING','OUT_FOR_DELIVERY') then
       new.status := 'DELIVERED';
     end if;
     new.is_canceled := false;

@@ -30,9 +30,6 @@ const STATUS_META = {
   PENDING: { label: 'Pending', color: '#d97706', bg: '#fef3c7', border: '#fde68a' },
   CONFIRMED: { label: 'Order Confirmed', color: '#1a7bb8', bg: '#e0f2fe', border: '#bae6fd' },
   TO_PICK_UP: { label: 'To Pick Up', color: '#ea580c', bg: '#ffedd5', border: '#fdba74' },
-  GALLON_RECEIVED: { label: 'Gallon Received', color: '#0d9488', bg: '#ccfbf1', border: '#99f6e4' },
-  // Legacy id — old rows / localStorage may still carry GALLON_TO_GET
-  GALLON_TO_GET: { label: 'Gallon Received', color: '#0d9488', bg: '#ccfbf1', border: '#99f6e4' },
   PREPARING: { label: 'Preparing', color: '#7c3aed', bg: '#ede9fe', border: '#c4b5fd' },
   OUT_FOR_DELIVERY: { label: 'Out for Delivery', color: '#059669', bg: '#dcfce7', border: '#a7f3d0' },
   DELIVERED: { label: 'Delivered', color: '#334155', bg: '#e2e8f0', border: '#cbd5e1' },
@@ -62,9 +59,9 @@ function Timeline({ order }) {
   const noPickup = !needsPickup(order)
   const steps = noPickup
     ? ['PENDING', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED']
-    : ['PENDING', 'CONFIRMED', 'TO_PICK_UP', 'GALLON_RECEIVED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED']
-  // Map legacy GALLON_TO_GET to GALLON_RECEIVED (should not happen after migration, but handle gracefully)
-  const current = (currentRaw === 'GALLON_TO_GET') ? 'GALLON_RECEIVED' : currentRaw
+    : ['PENDING', 'CONFIRMED', 'TO_PICK_UP', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED']
+  // Legacy ids are already normalized by getOrderStatus (GALLON_TO_GET → TO_PICK_UP, GALLON_RECEIVED → PREPARING)
+  const current = currentRaw
   const idx = steps.indexOf(current)
   return (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -84,7 +81,7 @@ function Timeline({ order }) {
           </div>
         )
       })}
-      {noPickup && <span style={{ fontSize: 10, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 6px', fontWeight: 700, marginLeft: 8 }}>No Gallon Receive — New/Borrow → Preparing</span>}
+      {noPickup && <span style={{ fontSize: 10, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 6px', fontWeight: 700, marginLeft: 8 }}>Skips To Pick Up — New/Borrow → Preparing</span>}
     </div>
   )
 }
@@ -124,7 +121,10 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus, onUpdatePa
                 {getValidStatuses(order).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
               <span style={{ fontSize: 11, color: 'var(--slate-500)' }}>Changes are saved to Supabase immediately.</span>
-              {needsPickup(order) && (status.id === 'CONFIRMED' || status.id === 'TO_PICK_UP' || status.id === 'GALLON_RECEIVED' || status.id === 'GALLON_TO_GET') && (
+              {status.id === 'PENDING' && (
+                <button className="btn-xs primary" style={{ padding: '6px 12px', background: '#1a7bb8', borderColor: '#1a7bb8', color: 'white' }} title="Confirm order (auto-queues: To Pick Up for gallons, Preparing for New/Borrow)" onClick={() => { onUpdateStatus(order.orderId, 'CONFIRMED'); onClose() }}>✓ Confirm Order</button>
+              )}
+              {needsPickup(order) && (status.id === 'CONFIRMED' || status.id === 'TO_PICK_UP') && (
                 <button className="btn-xs primary" style={{ padding: '6px 12px', background: '#7c3aed', borderColor: '#7c3aed', color: 'white' }} title="Empties collected — move to Preparing" onClick={() => { onUpdateStatus(order.orderId, 'PREPARING'); onClose() }}>🛻 Picked Up → Preparing</button>
               )}
               {status.id === 'PREPARING' && (
@@ -235,7 +235,7 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus, onUpdatePa
           {canCancel ? (
             <button className="btn-xs danger" style={{ marginRight: 'auto', padding: '8px 14px' }} onClick={() => { onCancel(order.orderId); onClose() }}>Cancel order</button>
           ) : (
-            <span style={{ marginRight: 'auto', fontSize: 12, color: 'var(--slate-500)' }}>{order.isCanceled ? 'This order is already canceled' : status.id === 'DELIVERED' ? 'Delivered — can no longer be canceled' : 'Cancel available while Pending / Confirmed / To Pick Up / Gallon Received / Preparing'}</span>
+            <span style={{ marginRight: 'auto', fontSize: 12, color: 'var(--slate-500)' }}>{order.isCanceled ? 'This order is already canceled' : status.id === 'DELIVERED' ? 'Delivered — can no longer be canceled' : 'Cancel available while Pending / Confirmed / To Pick Up / Preparing'}</span>
           )}
           <button className="btn-cancel" onClick={onClose}>Close</button>
         </div>
@@ -495,7 +495,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
       const s = getOrderStatus(o).id
       byStatus[s] = (byStatus[s] || 0) + 1
     })
-    const active = (byStatus.PENDING || 0) + (byStatus.CONFIRMED || 0) + (byStatus.TO_PICK_UP || 0) + (byStatus.GALLON_RECEIVED || 0) + (byStatus.GALLON_TO_GET || 0) + (byStatus.PREPARING || 0) + (byStatus.OUT_FOR_DELIVERY || 0)
+    const active = (byStatus.PENDING || 0) + (byStatus.CONFIRMED || 0) + (byStatus.TO_PICK_UP || 0) + (byStatus.PREPARING || 0) + (byStatus.OUT_FOR_DELIVERY || 0)
     const delivered = byStatus.DELIVERED || 0
     const revenue = orders.filter(o => getOrderStatus(o).id !== 'CANCELED').reduce((s, o) => s + getOrderDisplayTotal(o), 0)
     const avg = total - canceled > 0 ? revenue / (total - canceled) : 0
@@ -787,7 +787,10 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <button className="btn-xs" style={{ padding: '6px 10px' }} onClick={() => setSelected(order)}>View</button>
-                      {needsPickup(order) && (st.id === 'CONFIRMED' || st.id === 'TO_PICK_UP' || st.id === 'GALLON_RECEIVED' || st.id === 'GALLON_TO_GET') && (
+                      {st.id === 'PENDING' && (
+                        <button className="btn-xs primary" style={{ padding: '6px 10px', background: '#1a7bb8', borderColor: '#1a7bb8', color: 'white' }} title="Confirm order (auto-queues: To Pick Up for gallons, Preparing for New/Borrow)" onClick={() => handleStatusChange(order.orderId, 'CONFIRMED')}>✓ Confirm</button>
+                      )}
+                      {needsPickup(order) && (st.id === 'CONFIRMED' || st.id === 'TO_PICK_UP') && (
                         <button className="btn-xs primary" style={{ padding: '6px 10px', background: '#7c3aed', borderColor: '#7c3aed', color: 'white' }} title="Empties collected — move to Preparing" onClick={() => handleStatusChange(order.orderId, 'PREPARING')}>🛻 Picked Up</button>
                       )}
                       {st.id === 'PREPARING' && (
@@ -833,8 +836,6 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                   <span>→</span>
                   <span className="pill" style={{ background: '#ffedd5', color: '#9a3412', borderColor: '#fdba74' }}>To Pick Up (auto)</span>
                   <span>→</span>
-                  <span className="pill" style={{ background: '#ccfbf1', color: '#0f766e', borderColor: '#99f6e4' }}>Gallon Received</span>
-                  <span>→</span>
                   <span className="pill" style={{ background: '#ede9fe', color: '#5b21b6', borderColor: '#c4b5fd' }}>Preparing</span>
                   <span>→</span>
                   <span className="pill" style={{ background: '#dcfce7', color: '#065f46', borderColor: '#a7f3d0' }}>Out for delivery</span>
@@ -856,7 +857,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                 </div>
               </div>
               <div style={{ fontSize: 12, color: 'var(--slate-500)', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
-                Cancel is only allowed while status is Pending / Confirmed / To Pick Up / Gallon Received / Preparing. Delivered orders cannot be canceled. Pick-Up guide lists only To Pick Up gallons (plus legacy Confirmed needing pick-up) — use 🛻 Picked Up (table, detail view, or guide) to move collected orders to Preparing.
+                Cancel is only allowed while status is Pending / Confirmed / To Pick Up / Preparing. Delivered orders cannot be canceled. Pick-Up guide lists only To Pick Up gallons (plus legacy Confirmed needing pick-up) — use 🛻 Picked Up (table, detail view, or guide) to move collected orders to Preparing.
               </div>
             </div>
           </div>
