@@ -400,8 +400,11 @@ export function getOrderStatus(order) {
   const raw = order.status || order.order_status
   if (raw) {
     const key = String(raw).toUpperCase()
-    if (key === LEGACY_GALLON_TO_GET) return OrderStatus.TO_PICK_UP
+    if (key === LEGACY_GALLON_TO_GET) return needsPickup(order) ? OrderStatus.TO_PICK_UP : OrderStatus.PREPARING
     if (key === LEGACY_GALLON_RECEIVED) return OrderStatus.PREPARING
+    // New/Borrow orders never sit in the pickup queue — coerce to Preparing for display
+    // (writes already auto-resolve the same way via resolveStatusForOrder)
+    if (!needsPickup(order) && key === OrderStatus.TO_PICK_UP.id) return OrderStatus.PREPARING
     if (OrderStatus[key]) return OrderStatus[key]
     const byId = Object.values(OrderStatus).find(v => v.id === key)
     if (byId) return byId
