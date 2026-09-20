@@ -10,7 +10,20 @@ const nav = [
   { id: 'reports', label: 'Reports', sub: 'Analytics', icon: '📈' },
 ]
 
-export default function Sidebar({ active, onChange, collapsed, onToggleCollapse }) {
+const badgeHints = {
+  orders: 'pending orders',
+  messages: 'unread messages',
+  inventory: 'low-stock items',
+  borrowed: 'borrowed orders',
+  expenses: 'unpaid expenses',
+}
+
+function formatBadge(n) {
+  if (n > 99) return '99+'
+  return String(n)
+}
+
+export default function Sidebar({ active, onChange, collapsed, onToggleCollapse, badges = {} }) {
   const isCollapsed = Boolean(collapsed)
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : 'mobile-open'}`} aria-label="Primary navigation">
@@ -32,22 +45,32 @@ export default function Sidebar({ active, onChange, collapsed, onToggleCollapse 
       </div>
 
       <nav className="sidebar-nav">
-        {nav.map(item => (
+        {nav.map(item => {
+          const count = Number(badges[item.id]) || 0
+          const showBadge = count > 0
+          return (
           <button
             key={item.id}
             data-label={`${item.label} — ${item.sub}`}
             className={`nav-item ${active === item.id ? 'active' : ''}`}
             onClick={() => onChange(item.id)}
-            title={isCollapsed ? `${item.label} — ${item.sub}` : undefined}
+            title={isCollapsed ? `${item.label} — ${item.sub}${showBadge ? ` (${count} ${badgeHints[item.id] || 'new'})` : ''}` : undefined}
           >
             <span className="ico" aria-hidden="true">{item.icon}</span>
             <span className="nav-text" style={{ flex: 1, minWidth: 0 }}>
               <span className="nav-label" style={{ display: 'block', fontSize: '13.5px' }}>{item.label}</span>
               <span className="nav-sub" style={{ display: 'block', fontSize: '11.5px', color: 'var(--slate-400)', fontWeight: 500 }}>{item.sub}</span>
             </span>
+            {showBadge && !isCollapsed && (
+              <span className="nav-badge" title={`${count} ${badgeHints[item.id] || 'new'}`}>{formatBadge(count)}</span>
+            )}
+            {showBadge && isCollapsed && (
+              <span className="nav-badge floating" title={`${count} ${badgeHints[item.id] || 'new'}`}>{formatBadge(count)}</span>
+            )}
             {!isCollapsed && active === item.id && <span className="nav-chevron" style={{ color: 'var(--blue-600)' }}>›</span>}
           </button>
-        ))}
+          )
+        })}
       </nav>
 
       {/* Mobile-only close hint when expanded as drawer */}

@@ -10,7 +10,7 @@ import ExpensesView from './components/ExpensesView'
 import ReportsView from './components/ReportsView'
 import DailyPrintSheet from './components/DailyPrintSheet'
 import { initialEvents, inventoryItems as initialInventory, hiramRecords as initialHiram, expensesList as initialExpenses } from './data/mockData'
-import { defaultSampleOrders, ORDER_STORE_SPEC, sampleProducts, recomputeOrderTotals, needsPickup, getOrderStatus } from './data/ordersData'
+import { defaultSampleOrders, ORDER_STORE_SPEC, sampleProducts, recomputeOrderTotals, getOrderStatus, resolveStatusForOrder, autoMoveNotice, normalizeStatusId } from './data/ordersData'
 import DashboardView from './components/DashboardView'
 import OrdersView from './components/OrdersView'
 import MessagesView from './components/MessagesView'
@@ -187,8 +187,72 @@ export default function App() {
         })
         if (payload.eventType === 'DELETE') setExpenses(prev => prev.filter(e => String(e.id) !== String(payload.old.id)))
       }))
+      unsubs.push(DB.subscribeTable('products', () => {
+        DB.fetchProducts().then(rows => { if (rows?.length) setProducts(rows) }).catch(()=>{})
+      }))
+      unsubs.push(DB.subscribeTable('hiram_records', () => {
+        DB.fetchHiram().then(rows => { if (rows?.length) setHiramRecords(rows) }).catch(()=>{})
+      }))
     } catch {}
     return () => { cancelled = true; unsubs.forEach(fn => { try{ fn() }catch{} }) }
+  }, [])
+
+  // ---- Auto-update: polling + focus refresh (online) / cross-tab sync (offline) ----
+  // Keeps badges and all views live without manual refresh. Silent — no toasts.
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      // Offline: another tab on this device may change orders — pick it up live
+      const onStorage = (e) => {
+        if (e.key === ORDER_STORE_SPEC.key && e.newValue) {
+          try {
+            const parsed = JSON.parse(e.newValue)
+            if (Array.isArray(parsed) && parsed.length) setOrders(parsed)
+          } catch {}
+        }
+      }
+      window.addEventListener('storage', onStorage)
+      return () => window.removeEventListener('storage', onStorage)
+    }
+    let stopped = false
+    let fetching = false
+    let lastFocusFetch = 0
+    const refreshAll = async () => {
+      if (stopped || fetching) return
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      fetching = true
+      try {
+        const results = await Promise.allSettled([
+          DB.fetchProducts().catch(() => null),
+          DB.fetchInventory().catch(() => null),
+          DB.fetchEvents().catch(() => null),
+          DB.fetchHiram().catch(() => null),
+          DB.fetchExpenses().catch(() => null),
+          DB.fetchOrders().catch(() => null),
+          DB.fetchMessages().catch(() => null),
+        ])
+        if (stopped) return
+        const [prodR, invR, evR, hiramR, expR, ordR, msgR] = results
+        if (prodR.status === 'fulfilled' && Array.isArray(prodR.value) && prodR.value.length) setProducts(prodR.value)
+        if (invR.status === 'fulfilled' && Array.isArray(invR.value) && invR.value.length) setInventory(invR.value)
+        if (evR.status === 'fulfilled' && Array.isArray(evR.value) && evR.value.length) setEvents(evR.value)
+        if (hiramR.status === 'fulfilled' && Array.isArray(hiramR.value) && hiramR.value.length) setHiramRecords(hiramR.value)
+        if (expR.status === 'fulfilled' && Array.isArray(expR.value) && expR.value.length) setExpenses(expR.value)
+        if (ordR.status === 'fulfilled' && Array.isArray(ordR.value) && ordR.value.length) {
+          setOrders(ordR.value)
+          try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(ordR.value)) } catch {}
+        }
+        if (msgR.status === 'fulfilled' && Array.isArray(msgR.value)) setMessages(msgR.value)
+      } catch {} finally { fetching = false }
+    }
+    const timer = setInterval(refreshAll, 45000)
+    const onFocus = () => {
+      const now = Date.now()
+      if (now - lastFocusFetch < 5000) return
+      lastFocusFetch = now
+      refreshAll()
+    }
+    window.addEventListener('focus', onFocus)
+    return () => { stopped = true; clearInterval(timer); window.removeEventListener('focus', onFocus) }
   }, [])
 
   // console-only status (UI banner removed per user request)
@@ -206,6 +270,16 @@ export default function App() {
     if (newPending.length && maybeChimeForPending(newPending)) showToast(`🔔 ${newPending.length} new pending — ${newPending.join(', ')}`)
     prevPendingIdsRef.current = curIds
   }, [orders])
+
+  // ---- Notification bubbles: counts of items needing attention per tab ----
+  // Only rendered when count > 0 (Sidebar hides zero badges)
+  const navBadges = useMemo(() => ({
+    orders: orders.filter(o => getOrderStatus(o).id === 'PENDING').length,
+    messages: messages.filter(m => !m.is_read && !m.is_deleted && !m.is_blocked).length,
+    inventory: inventory.filter(it => (it.stockFilled ?? it.stock_filled ?? 0) <= (it.threshold ?? 0) && !(it.is_archived ?? it.isArchived)).length,
+    borrowed: orders.filter(o => (o.borrowedCount ?? o.borrowed_count ?? 0) > 0).length,
+    expenses: expenses.filter(e => e.is_paid === false && !e.is_archived).length,
+  }), [orders, messages, inventory, expenses])
 
   const monthEvents = useMemo(() => events.filter(e => e.date.startsWith(formatISO(currentDate).slice(0,7))), [events, currentDate])
   const selectedISO = formatISO(selectedDate)
@@ -343,10 +417,16 @@ export default function App() {
 
   const handleOrderStatusUpdate = async (orderId, newStatus) => {
     const order = orders.find(o => o.orderId === orderId)
-    let finalStatus = newStatus
-    if (order && newStatus === 'GALLON_TO_GET' && !needsPickup(order)) {
-      finalStatus = 'OUT_FOR_DELIVERY'
-      showToast('New/Borrow orders skip Gallon Pick Up → Out for Delivery')
+    let finalStatus = normalizeStatusId(newStatus)
+    if (order) {
+      const resolved = resolveStatusForOrder(order, newStatus)
+      if (resolved !== finalStatus) {
+        finalStatus = resolved
+        const notice = autoMoveNotice(resolved)
+        showToast(notice || `Auto-moved → ${resolved}`)
+      } else {
+        finalStatus = resolved
+      }
     }
     setOrders(prev => {
       const next = prev.map(o => o.orderId === orderId ? { ...o, status: finalStatus, isCanceled: finalStatus === 'CANCELED', is_canceled: finalStatus === 'CANCELED', is_delivered: finalStatus === 'DELIVERED' } : o)
@@ -533,7 +613,7 @@ export default function App() {
       <Header onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} dbStatus={dbStatus} syncing={syncing} soundOn={soundOn} onToggleSound={handleToggleSound} />
 
       <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Sidebar active={activeTab} onChange={handleNavChange} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
+        <Sidebar active={activeTab} onChange={handleNavChange} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} badges={navBadges} />
 
         <main className="main-card">
           {activeTab === 'dashboard' && (

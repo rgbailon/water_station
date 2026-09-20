@@ -12,12 +12,19 @@ function BlankRows({ count, cols }) {
   ))
 }
 
-export default function PickUpPrintSheet({ orders = [], onClose, singleOrder = null }) {
+export default function PickUpPrintSheet({ orders = [], onClose, singleOrder = null, onMarkPickedUp, showToast }) {
   const now = Date.now()
   const date = new Date(now)
   const dateStr = formatPHLong(date)
   const list = singleOrder ? [singleOrder] : orders
   const isSingle = Boolean(singleOrder)
+
+  const handleMarkAllPickedUp = () => {
+    if (!onMarkPickedUp || list.length === 0) return
+    list.forEach(o => onMarkPickedUp(o.orderId, 'PREPARING'))
+    showToast && showToast(`${list.length} order(s) picked up → Preparing`)
+    onClose && onClose()
+  }
 
   // totals
   const totalGallons = list.reduce((s, o) => s + o.items.reduce((a, it) => a + it.quantity, 0), 0)
@@ -59,7 +66,7 @@ export default function PickUpPrintSheet({ orders = [], onClose, singleOrder = n
           <div className="print-section">
             <div style={{ textAlign: 'center', padding: 24, background: '#fffbeb', border: '1px dashed #fde68a', borderRadius: 8, color: '#92400e', fontSize: '10pt' }}>
               No confirmed orders needing pick-up right now.<br />
-              <span style={{ fontSize: '8pt' }}>Orders appear here when they are <b>Order Confirmed</b> or <b>Gallon Pick Up</b>. Check again in a few minutes.</span>
+              <span style={{ fontSize: '8pt' }}>Orders appear here when they are <b>To Pick Up</b> (gallons to pick up — auto-queued after Confirm). <b>Gallon Received</b> and <b>Preparing</b> orders are already collected and never appear here.</span>
             </div>
           </div>
         ) : (
@@ -178,6 +185,9 @@ export default function PickUpPrintSheet({ orders = [], onClose, singleOrder = n
 
         <div className="print-actions">
           <button className="btn-cancel" onClick={onClose}>Close</button>
+          {onMarkPickedUp && list.length > 0 && (
+            <button className="btn-save" style={{ background: '#7c3aed', borderColor: '#7c3aed' }} onClick={handleMarkAllPickedUp}>🛻 {isSingle ? 'Picked Up → Preparing' : `All Picked Up → Preparing (${list.length})`}</button>
+          )}
           <button className="btn-save" onClick={() => window.print()}>🖨 Print this guide</button>
         </div>
       </div>

@@ -17,18 +17,27 @@ export const BottleSituation = {
 export const OrderStatus = {
   PENDING: { id: 'PENDING', label: 'Pending' },
   CONFIRMED: { id: 'CONFIRMED', label: 'Order Confirmed' },
-  GALLON_TO_GET: { id: 'GALLON_TO_GET', label: 'Gallon Pick Up' },
+  TO_PICK_UP: { id: 'TO_PICK_UP', label: 'To Pick Up' },
+  GALLON_RECEIVED: { id: 'GALLON_RECEIVED', label: 'Gallon Received' },
+  PREPARING: { id: 'PREPARING', label: 'Preparing' },
   OUT_FOR_DELIVERY: { id: 'OUT_FOR_DELIVERY', label: 'Out for Delivery' },
   DELIVERED: { id: 'DELIVERED', label: 'Delivered' },
   CANCELED: { id: 'CANCELED', label: 'Canceled' },
 }
+
+// Legacy status id kept for backward compat with old DB rows / localStorage.
+// Old `GALLON_TO_GET` ("Gallon Pick Up") is now `GALLON_RECEIVED` ("Gallon Received").
+export const LEGACY_GALLON_TO_GET = 'GALLON_TO_GET'
 
 export const PaymentStatus = {
   PAID: { id: 'PAID', label: 'Paid', color: '#059669', bg: '#dcfce7', border: '#a7f3d0' },
   UNPAID: { id: 'UNPAID', label: 'Unpaid', color: '#d97706', bg: '#fef3c7', border: '#fde68a' },
 }
 
-// New gallon / Borrowed orders skip Gallon Pick Up — only Order Confirmed → Out for Delivery
+// New gallon / Borrowed orders skip To Pick Up + Gallon Received — Confirmed auto-moves to Preparing,
+// then only Preparing → Out for Delivery → Delivered.
+// WITH-gallon orders: Pending → Confirmed → To Pick Up (auto) → Gallon Received → Preparing → Out for Delivery → Delivered.
+// Only To Pick Up orders (gallons to pick up) appear in the Pick-Up guide.
 export function isNewOrBorrowOrder(order) {
   const items = order?.items || []
   if (!items.length) return false
@@ -41,8 +50,8 @@ export function needsPickup(order) {
   return !isNewOrBorrowOrder(order)
 }
 export function getValidStatuses(order) {
-  if (needsPickup(order)) return Object.values(OrderStatus)
-  return [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.CANCELED]
+  if (needsPickup(order)) return [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.TO_PICK_UP, OrderStatus.GALLON_RECEIVED, OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.CANCELED]
+  return [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.CANCELED]
 }
 export function isValidStatusForOrder(order, statusId) {
   return getValidStatuses(order).some(s => s.id === statusId)
@@ -381,7 +390,8 @@ export function calcBorrowedContainerSubtotal(items, paymentStatus = 'PAID') {
 }
 
 // 4. Order status — now database-driven (no timers)
-// `order.status` is the source of truth (e.g. PENDING, CONFIRMED, GALLON_TO_GET, OUT_FOR_DELIVERY, DELIVERED, CANCELED).
+// `order.status` is the source of truth (e.g. PENDING, CONFIRMED, TO_PICK_UP, GALLON_RECEIVED, PREPARING, OUT_FOR_DELIVERY, DELIVERED, CANCELED).
+// Legacy `GALLON_TO_GET` ("Gallon Pick Up") is mapped to GALLON_RECEIVED for backward compat.
 // Legacy `isCanceled` / `is_canceled` boolean is still honored for backward compat.
 export function getOrderStatus(order) {
   if (!order) return OrderStatus.PENDING
@@ -389,6 +399,7 @@ export function getOrderStatus(order) {
   const raw = order.status || order.order_status
   if (raw) {
     const key = String(raw).toUpperCase()
+    if (key === LEGACY_GALLON_TO_GET) return OrderStatus.GALLON_RECEIVED
     if (OrderStatus[key]) return OrderStatus[key]
     const byId = Object.values(OrderStatus).find(v => v.id === key)
     if (byId) return byId
@@ -396,12 +407,37 @@ export function getOrderStatus(order) {
   return OrderStatus.PENDING
 }
 
+export function normalizeStatusId(statusId) {
+  const key = String(statusId || '').toUpperCase()
+  if (key === LEGACY_GALLON_TO_GET) return OrderStatus.GALLON_RECEIVED.id
+  return statusId
+}
+
+// New/Borrow orders auto-move Confirmed → Preparing (no To Pick Up / Gallon Received step).
+// With-gallon orders auto-move Confirmed → To Pick Up (pickup queue, listed in Pick-Up guide).
+export function resolveStatusForOrder(order, requestedStatusId) {
+  let next = normalizeStatusId(requestedStatusId)
+  if (!needsPickup(order)) {
+    if (next === OrderStatus.CONFIRMED.id || next === OrderStatus.TO_PICK_UP.id || next === OrderStatus.GALLON_RECEIVED.id) return OrderStatus.PREPARING.id
+  } else if (next === OrderStatus.CONFIRMED.id) {
+    return OrderStatus.TO_PICK_UP.id
+  }
+  return next
+}
+
+// Human-readable notice when resolveStatusForOrder auto-moved the requested status
+export function autoMoveNotice(resolvedId) {
+  if (resolvedId === OrderStatus.TO_PICK_UP.id) return 'Confirmed → To Pick Up (listed in Pick-Up guide)'
+  if (resolvedId === OrderStatus.PREPARING.id) return 'New gallon / Borrowed auto-move Confirmed → Preparing (skips To Pick Up)'
+  return null
+}
+
 export function canCancelOrder(order) {
   if (!order) return false
   if (order.isCanceled || order.is_canceled) return false
   const s = getOrderStatus(order).id
   // Only allow cancel while still in preparation phases
-  return s === OrderStatus.PENDING.id || s === OrderStatus.CONFIRMED.id || s === OrderStatus.GALLON_TO_GET.id
+  return s === OrderStatus.PENDING.id || s === OrderStatus.CONFIRMED.id || s === OrderStatus.TO_PICK_UP.id || s === OrderStatus.GALLON_RECEIVED.id || s === OrderStatus.PREPARING.id
 }
 
 // Helper: list of statuses that allow manual transition (for UI dropdown)
@@ -484,7 +520,7 @@ export function generateSampleOrders() {
     mkOrder({
       orderId: 'WFR-7392',
       date: now - 2 * 60 * 60 * 1000,
-      status: 'CONFIRMED',
+      status: 'TO_PICK_UP',
       paymentStatus: 'UNPAID',
       customerName: 'Maria Santos',
       phone: '0917-000-1122',
@@ -497,7 +533,7 @@ export function generateSampleOrders() {
     mkOrder({
       orderId: 'WFR-6105',
       date: now - 4 * 60 * 60 * 1000,
-      status: 'GALLON_TO_GET',
+      status: 'GALLON_RECEIVED',
       paymentStatus: 'UNPAID',
       customerName: 'Ana Reyes',
       phone: '0905-123-4567',

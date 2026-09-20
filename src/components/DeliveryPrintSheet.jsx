@@ -16,7 +16,9 @@ export default function DeliveryPrintSheet({ orders = [], onClose, singleOrder =
   const now = Date.now()
   const date = new Date(now)
   const dateStr = formatPHLong(date)
-  const list = singleOrder ? [singleOrder] : orders
+  // Delivery guide lists ONLY Out for Delivery orders — anything else is excluded,
+  // so its products never leak in from other statuses.
+  const list = singleOrder ? [singleOrder] : orders.filter(o => getOrderStatus(o).id === 'OUT_FOR_DELIVERY')
   const isSingle = Boolean(singleOrder)
 
   const totalGallons = list.reduce((s, o) => s + o.items.reduce((a, it) => a + it.quantity, 0), 0)
