@@ -122,13 +122,16 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus, onUpdatePa
               </select>
               <span style={{ fontSize: 11, color: 'var(--slate-500)' }}>Changes are saved to Supabase immediately.</span>
               {status.id === 'PENDING' && (
-                <button className="btn-xs primary" style={{ padding: '6px 12px', background: '#1a7bb8', borderColor: '#1a7bb8', color: 'white' }} title="Confirm order (auto-queues: To Pick Up for gallons, Preparing for New/Borrow)" onClick={() => { onUpdateStatus(order.orderId, 'CONFIRMED'); onClose() }}>✓ Confirm Order</button>
+                <button className="btn-xs primary" style={{ padding: '6px 12px', background: '#1a7bb8', borderColor: '#1a7bb8', color: 'white' }} title="Confirm order" onClick={() => { onUpdateStatus(order.orderId, 'CONFIRMED'); onClose() }}>✓ Confirm Order</button>
               )}
               {needsPickup(order) && (status.id === 'CONFIRMED' || status.id === 'TO_PICK_UP') && (
                 <button className="btn-xs primary" style={{ padding: '6px 12px', background: '#7c3aed', borderColor: '#7c3aed', color: 'white' }} title="Empties collected — move to Preparing" onClick={() => { onUpdateStatus(order.orderId, 'PREPARING'); onClose() }}>🛻 Picked Up → Preparing</button>
               )}
               {status.id === 'PREPARING' && (
                 <button className="btn-xs primary" style={{ padding: '6px 12px', background: '#059669', borderColor: '#059669', color: 'white' }} title="Ready — move to Out for Delivery (delivery list)" onClick={() => { onUpdateStatus(order.orderId, 'OUT_FOR_DELIVERY'); onClose() }}>🚚 Out for Delivery</button>
+              )}
+              {status.id === 'OUT_FOR_DELIVERY' && (
+                <button className="btn-xs primary" style={{ padding: '6px 12px', background: '#334155', borderColor: '#334155', color: 'white' }} title="Delivered to customer" onClick={() => { onUpdateStatus(order.orderId, 'DELIVERED'); onClose() }}>✓ Delivered</button>
               )}
             </div>
           )}
@@ -564,8 +567,8 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
 
   const pickUpList = useMemo(() => orders.filter(o => {
     if (!needsPickup(o)) return false
-    // Gallons to pick up: To Pick Up queue (+ legacy Confirmed rows not yet auto-moved).
-    // Gallon Received and later are already collected — never in the Pick-Up guide.
+    // Gallons to pick up: To Pick Up queue + Confirmed orders needing pick-up.
+    // Preparing and later are already collected — never in the Pick-Up guide.
     const s = normalizeStatusId(getOrderStatus(o).id)
     return s === OrderStatus.TO_PICK_UP.id || s === OrderStatus.CONFIRMED.id
   }), [orders])
@@ -788,13 +791,16 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <button className="btn-xs" style={{ padding: '6px 10px' }} onClick={() => setSelected(order)}>View</button>
                       {st.id === 'PENDING' && (
-                        <button className="btn-xs primary" style={{ padding: '6px 10px', background: '#1a7bb8', borderColor: '#1a7bb8', color: 'white' }} title="Confirm order (auto-queues: To Pick Up for gallons, Preparing for New/Borrow)" onClick={() => handleStatusChange(order.orderId, 'CONFIRMED')}>✓ Confirm</button>
+                        <button className="btn-xs primary" style={{ padding: '6px 10px', background: '#1a7bb8', borderColor: '#1a7bb8', color: 'white' }} title="Confirm order" onClick={() => handleStatusChange(order.orderId, 'CONFIRMED')}>✓ Confirm</button>
                       )}
                       {needsPickup(order) && (st.id === 'CONFIRMED' || st.id === 'TO_PICK_UP') && (
                         <button className="btn-xs primary" style={{ padding: '6px 10px', background: '#7c3aed', borderColor: '#7c3aed', color: 'white' }} title="Empties collected — move to Preparing" onClick={() => handleStatusChange(order.orderId, 'PREPARING')}>🛻 Picked Up</button>
                       )}
                       {st.id === 'PREPARING' && (
                         <button className="btn-xs primary" style={{ padding: '6px 10px', background: '#059669', borderColor: '#059669', color: 'white' }} title="Ready — move to Out for Delivery (delivery list)" onClick={() => handleStatusChange(order.orderId, 'OUT_FOR_DELIVERY')}>🚚 Out for Delivery</button>
+                      )}
+                      {st.id === 'OUT_FOR_DELIVERY' && (
+                        <button className="btn-xs primary" style={{ padding: '6px 10px', background: '#334155', borderColor: '#334155', color: 'white' }} title="Delivered to customer" onClick={() => handleStatusChange(order.orderId, 'DELIVERED')}>✓ Delivered</button>
                       )}
                       {canCancel && <button className="btn-xs danger" style={{ padding: '6px 10px' }} onClick={() => handleCancel(order.orderId)}>Cancel</button>}
                     </div>
@@ -826,7 +832,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           <div style={{ background: 'var(--white)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14 }}>
             <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--slate-900)' }}>How order status works</h3>
             <div style={{ display: 'grid', gap: 8, fontSize: 13, color: 'var(--slate-600)', lineHeight: 1.5 }}>
-              <div>Order status is now stored in Supabase column <code>orders.status</code> — no automatic timers. Update via dropdown or detail view. <b>With Gallon</b> orders auto-move <code>CONFIRMED → TO_PICK_UP</code> (pickup queue). <b>New Gallon</b> (<code>NEEDS_GALLON</code>) and <b>Borrowed</b> (<code>BORROW</code>) auto-move <code>CONFIRMED → PREPARING</code>. Pick-Up guide lists only To Pick Up gallons.</div>
+              <div>Order status is now stored in Supabase column <code>orders.status</code> — no automatic timers. Update via dropdown, detail view, or one-tap buttons. <b>With Gallon</b> flow: <code>CONFIRMED → TO_PICK_UP</code> (pickup queue). <b>New Gallon</b> (<code>NEEDS_GALLON</code>) and <b>Borrowed</b> (<code>BORROW</code>) skip the queue: <code>CONFIRMED → PREPARING</code>. Pick-Up guide lists only To Pick Up gallons. Use the status filter above (e.g. <b>Order Confirmed</b>) to list orders per stage.</div>
               <div style={{ display: 'grid', gap: 6 }}>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
                   <span style={{ fontSize: 11, color: 'var(--slate-500)', fontWeight: 800 }}>WITH Gallon:</span>
@@ -834,7 +840,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                   <span>→</span>
                   <span className="pill" style={{ background: '#e0f2fe', color: '#0c4a6e', borderColor: '#bae6fd' }}>Confirmed</span>
                   <span>→</span>
-                  <span className="pill" style={{ background: '#ffedd5', color: '#9a3412', borderColor: '#fdba74' }}>To Pick Up (auto)</span>
+                  <span className="pill" style={{ background: '#ffedd5', color: '#9a3412', borderColor: '#fdba74' }}>To Pick Up</span>
                   <span>→</span>
                   <span className="pill" style={{ background: '#ede9fe', color: '#5b21b6', borderColor: '#c4b5fd' }}>Preparing</span>
                   <span>→</span>
@@ -848,7 +854,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                   <span>→</span>
                   <span className="pill" style={{ background: '#e0f2fe', color: '#0c4a6e', borderColor: '#bae6fd' }}>Confirmed</span>
                   <span>→</span>
-                  <span className="pill" style={{ background: '#ede9fe', color: '#5b21b6', borderColor: '#c4b5fd' }}>Preparing (auto)</span>
+                  <span className="pill" style={{ background: '#ede9fe', color: '#5b21b6', borderColor: '#c4b5fd' }}>Preparing</span>
                   <span>→</span>
                   <span className="pill" style={{ background: '#dcfce7', color: '#065f46', borderColor: '#a7f3d0' }}>Out for delivery</span>
                   <span>→</span>

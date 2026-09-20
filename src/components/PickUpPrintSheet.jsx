@@ -66,7 +66,7 @@ export default function PickUpPrintSheet({ orders = [], onClose, singleOrder = n
           <div className="print-section">
             <div style={{ textAlign: 'center', padding: 24, background: '#fffbeb', border: '1px dashed #fde68a', borderRadius: 8, color: '#92400e', fontSize: '10pt' }}>
               No confirmed orders needing pick-up right now.<br />
-              <span style={{ fontSize: '8pt' }}>Orders appear here when they are <b>To Pick Up</b> (gallons to pick up — auto-queued after Confirm). <b>Preparing</b> orders are already collected and never appear here.</span>
+              <span style={{ fontSize: '8pt' }}>Orders appear here when they are <b>To Pick Up</b> (gallons to pick up). Move Confirmed orders to <b>To Pick Up</b> to queue them here. <b>Preparing</b> orders are already collected and never appear here.</span>
             </div>
           </div>
         ) : (

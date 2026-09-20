@@ -35,9 +35,8 @@ export const PaymentStatus = {
   UNPAID: { id: 'UNPAID', label: 'Unpaid', color: '#d97706', bg: '#fef3c7', border: '#fde68a' },
 }
 
-// New gallon / Borrowed orders skip To Pick Up + Gallon Received — Confirmed auto-moves to Preparing,
-// then only Preparing → Out for Delivery → Delivered.
-// WITH-gallon orders: Pending → Confirmed → To Pick Up (auto) → Preparing → Out for Delivery → Delivered.
+// New gallon / Borrowed orders skip To Pick Up — Confirmed → Preparing → Out for Delivery → Delivered.
+// WITH-gallon orders: Pending → Confirmed → To Pick Up → Preparing → Out for Delivery → Delivered.
 // Only To Pick Up orders (gallons to pick up) appear in the Pick-Up guide.
 export function isNewOrBorrowOrder(order) {
   const items = order?.items || []
@@ -419,22 +418,21 @@ export function normalizeStatusId(statusId) {
   return statusId
 }
 
-// New/Borrow orders auto-move Confirmed → Preparing (no To Pick Up / Gallon Received step).
-// With-gallon orders auto-move Confirmed → To Pick Up (pickup queue, listed in Pick-Up guide).
+// Order Confirmed is a real, persistent stage — selecting it always saves CONFIRMED
+// (confirmed orders list under the Order Confirmed filter).
+// Only guard-rail left: New/Borrow orders can't sit in the pickup queue,
+// so requesting TO_PICK_UP for them resolves to PREPARING.
 export function resolveStatusForOrder(order, requestedStatusId) {
   let next = normalizeStatusId(requestedStatusId)
-  if (!needsPickup(order)) {
-    if (next === OrderStatus.CONFIRMED.id || next === OrderStatus.TO_PICK_UP.id) return OrderStatus.PREPARING.id
-  } else if (next === OrderStatus.CONFIRMED.id) {
-    return OrderStatus.TO_PICK_UP.id
+  if (!needsPickup(order) && next === OrderStatus.TO_PICK_UP.id) {
+    return OrderStatus.PREPARING.id
   }
   return next
 }
 
 // Human-readable notice when resolveStatusForOrder auto-moved the requested status
 export function autoMoveNotice(resolvedId) {
-  if (resolvedId === OrderStatus.TO_PICK_UP.id) return 'Confirmed → To Pick Up (listed in Pick-Up guide)'
-  if (resolvedId === OrderStatus.PREPARING.id) return 'New gallon / Borrowed auto-move Confirmed → Preparing (skips To Pick Up)'
+  if (resolvedId === OrderStatus.PREPARING.id) return 'New gallon / Borrowed skip To Pick Up → Preparing'
   return null
 }
 
