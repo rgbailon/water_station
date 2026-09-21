@@ -578,7 +578,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
       <div className="section-head" style={{ borderTop: 'none' }}>
         <div>
           <h2>🧾 Orders</h2>
-          <p>Database-driven status — update manually, no timers {dbStatus?.mode==='online' ? <span className="pill green" style={{ fontSize: 11 }}>Supabase live • status column</span> : '• Offline fallback'}</p>
+          <p>Database-driven status — update manually, no timers {dbStatus?.mode==='online' ? <><span className="pill green" style={{ fontSize: 11 }}>Supabase live • status column</span> <span className="pill blue" style={{ fontSize: 11 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: '#0ea5e9', display: 'inline-block', marginRight: 4 }}></span>DB synced</span></> : '• Offline fallback'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button
@@ -600,6 +600,71 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           <button className="btn btn-primary" style={{ background: 'var(--blue-600)', color: 'white' }} onClick={() => setShowNew(true)}><span className="plus">+</span> New order</button>
         </div>
       </div>
+
+      <div style={{ margin: '0 18px', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ flex: '1 1 200px', minWidth: 180, position: 'relative' }}>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by order number, customer, or status..."
+            style={{ width: '100%', padding: '9px 12px 9px 34px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 13, background: 'var(--white)', color: 'var(--slate-700)' }}
+          />
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--slate-400)', fontSize: 14 }}>⌕</span>
+        </div>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
+          <option value="ALL">All statuses</option>
+          {Object.values(OrderStatus).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+        <select value={scheduleFilter} onChange={e => setScheduleFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
+          <option value="ALL">All schedules</option>
+          {scheduleOptions.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
+          <option value="ALL">All payment methods</option>
+          {paymentOptions.map(p => <option key={p.label} value={p.label}>{p.label}</option>)}
+        </select>
+        <select value={borrowedFilter} onChange={e => setBorrowedFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: borrowedFilter !== 'ALL' ? '#fffbeb' : 'var(--white)', color: 'var(--slate-700)', borderColor: borrowedFilter !== 'ALL' ? '#fde68a' : 'var(--slate-200)' }}>
+          <option value="ALL">All borrowed</option>
+          <option value="BORROWED">Borrowed only ({stats.borrowedOrders})</option>
+          <option value="NOT_BORROWED">No borrowed</option>
+        </select>
+        <select value={paymentStatusFilter} onChange={e => setPaymentStatusFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: paymentStatusFilter !== 'ALL' ? '#fffbeb' : 'var(--white)', color: 'var(--slate-700)', borderColor: paymentStatusFilter !== 'ALL' ? '#fde68a' : 'var(--slate-200)' }}>
+          <option value="ALL">All paid</option>
+          <option value="PAID">Paid ({stats.paidOrders})</option>
+          <option value="UNPAID">Unpaid ({stats.unpaidOrders})</option>
+        </select>
+        <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{filtered.length} of {orders.length} orders • {stats.totalBorrowed} gals borrowed • {stats.unpaidOrders} unpaid</span>
+        {(search || statusFilter !== 'ALL' || scheduleFilter !== 'ALL' || paymentFilter !== 'ALL' || borrowedFilter !== 'ALL' || paymentStatusFilter !== 'ALL') && (
+          <button className="btn-xs" onClick={() => { setSearch(''); setStatusFilter('ALL'); setScheduleFilter('ALL'); setPaymentFilter('ALL'); setBorrowedFilter('ALL'); setPaymentStatusFilter('ALL') }}>Clear</button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, padding: '10px 18px', flexWrap: 'wrap' }}>
+        {['ALL', ...Object.keys(OrderStatus)].map(id => {
+          const isAll = id === 'ALL'
+          const active = statusFilter === id
+          const label = isAll ? 'All' : STATUS_META[id]?.label || id
+          const count = isAll ? orders.length : orders.filter(o => getOrderStatus(o).id === id).length
+          return (
+            <button key={id} onClick={() => setStatusFilter(id)} style={{
+              padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: `1px solid ${active ? 'var(--slate-900)' : 'var(--slate-200)'}`,
+              background: active ? 'var(--slate-900)' : 'var(--white)', color: active ? 'var(--white)' : 'var(--slate-700)', cursor: 'pointer'
+            }}>
+              {label} <span style={{ opacity: 0.7, fontWeight: 600 }}>({count})</span>
+            </button>
+          )
+        })}
+      </div>
+      <Suspense fallback={<div style={{ padding: '24px 18px', color: 'var(--slate-500)', fontSize: 13 }}>Loading orders grid…</div>}>
+        <OrdersAgGrid
+          rowData={filtered}
+          onView={(order) => setSelected(order)}
+          onStatusChange={handleStatusChange}
+          onPaymentChange={handlePaymentStatusChange}
+          onCancel={handleCancel}
+          showToast={showToast}
+        />
+      </Suspense>
 
       <div style={{ margin: '0 18px', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0 6px' }}>
         <button
@@ -645,74 +710,6 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           </div>
         </div>
       )}
-
-      <div style={{ margin: '0 18px', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ flex: '1 1 200px', minWidth: 180, position: 'relative' }}>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by order number, customer, or status..."
-            style={{ width: '100%', padding: '9px 12px 9px 34px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 13, background: 'var(--white)', color: 'var(--slate-700)' }}
-          />
-          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--slate-400)', fontSize: 14 }}>⌕</span>
-        </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
-          <option value="ALL">All statuses</option>
-          {Object.values(OrderStatus).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-        </select>
-        <select value={scheduleFilter} onChange={e => setScheduleFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
-          <option value="ALL">All schedules</option>
-          {scheduleOptions.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
-          <option value="ALL">All payment methods</option>
-          {paymentOptions.map(p => <option key={p.label} value={p.label}>{p.label}</option>)}
-        </select>
-        <select value={borrowedFilter} onChange={e => setBorrowedFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: borrowedFilter !== 'ALL' ? '#fffbeb' : 'var(--white)', color: 'var(--slate-700)', borderColor: borrowedFilter !== 'ALL' ? '#fde68a' : 'var(--slate-200)' }}>
-          <option value="ALL">All borrowed</option>
-          <option value="BORROWED">Borrowed only ({stats.borrowedOrders})</option>
-          <option value="NOT_BORROWED">No borrowed</option>
-        </select>
-        <select value={paymentStatusFilter} onChange={e => setPaymentStatusFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: paymentStatusFilter !== 'ALL' ? '#fffbeb' : 'var(--white)', color: 'var(--slate-700)', borderColor: paymentStatusFilter !== 'ALL' ? '#fde68a' : 'var(--slate-200)' }}>
-          <option value="ALL">All paid</option>
-          <option value="PAID">Paid ({stats.paidOrders})</option>
-          <option value="UNPAID">Unpaid ({stats.unpaidOrders})</option>
-        </select>
-        <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{filtered.length} of {orders.length} orders • {stats.totalBorrowed} gals borrowed • {stats.unpaidOrders} unpaid</span>
-        {(search || statusFilter !== 'ALL' || scheduleFilter !== 'ALL' || paymentFilter !== 'ALL' || borrowedFilter !== 'ALL' || paymentStatusFilter !== 'ALL') && (
-          <button className="btn-xs" onClick={() => { setSearch(''); setStatusFilter('ALL'); setScheduleFilter('ALL'); setPaymentFilter('ALL'); setBorrowedFilter('ALL'); setPaymentStatusFilter('ALL') }}>Clear</button>
-        )}
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span style={{ width: 8, height: 8, borderRadius: 999, background: '#0ea5e9', display: 'inline-block' }}></span> DB synced
-        </span>
-      </div>
-
-      <div style={{ display: 'flex', gap: 6, padding: '10px 18px', flexWrap: 'wrap' }}>
-        {['ALL', ...Object.keys(OrderStatus)].map(id => {
-          const isAll = id === 'ALL'
-          const active = statusFilter === id
-          const label = isAll ? 'All' : STATUS_META[id]?.label || id
-          const count = isAll ? orders.length : orders.filter(o => getOrderStatus(o).id === id).length
-          return (
-            <button key={id} onClick={() => setStatusFilter(id)} style={{
-              padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: `1px solid ${active ? 'var(--slate-900)' : 'var(--slate-200)'}`,
-              background: active ? 'var(--slate-900)' : 'var(--white)', color: active ? 'var(--white)' : 'var(--slate-700)', cursor: 'pointer'
-            }}>
-              {label} <span style={{ opacity: 0.7, fontWeight: 600 }}>({count})</span>
-            </button>
-          )
-        })}
-      </div>
-      <Suspense fallback={<div style={{ padding: '24px 18px', color: 'var(--slate-500)', fontSize: 13 }}>Loading orders grid…</div>}>
-        <OrdersAgGrid
-          rowData={filtered}
-          onView={(order) => setSelected(order)}
-          onStatusChange={handleStatusChange}
-          onPaymentChange={handlePaymentStatusChange}
-          onCancel={handleCancel}
-          showToast={showToast}
-        />
-      </Suspense>
 
       <div style={{ margin: '0 18px', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0 6px' }}>
         <button
