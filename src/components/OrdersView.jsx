@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, lazy, Suspense } from 'react'
 import { peso } from '../utils/dateUtils'
 import {
   productById,
@@ -12,19 +12,18 @@ import {
   getEffectivePrice,
   recomputeOrderTotals,
   getOrderDisplayTotal,
-  getOrderDisplaySubtotal,
   needsPickup,
-  isNewOrBorrowOrder,
   getValidStatuses,
   resolveStatusForOrder,
   autoMoveNotice,
   normalizeStatusId,
   canCancelOrder,
   formatOrderDate,
-  formatOrderDateShort,
 } from '../data/ordersData'
 import PickUpPrintSheet from './PickUpPrintSheet'
 import DeliveryPrintSheet from './DeliveryPrintSheet'
+
+const OrdersAgGrid = lazy(() => import('./OrdersAgGrid'))
 
 const STATUS_META = {
   PENDING: { label: 'Pending', color: '#d97706', bg: '#fef3c7', border: '#fde68a' },
@@ -704,113 +703,16 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           )
         })}
       </div>
-      <div className="table-wrap" style={{ paddingTop: 0 }}>
-        <table className="table orders-table">
-          <thead>
-            <tr>
-              <th>Order number</th>
-              <th>Date & time</th>
-              <th>Customer</th>
-              <th>Items</th>
-              <th style={{ textAlign: 'center' }}>Borrowed</th>
-              <th style={{ textAlign: 'center' }}>Payment</th>
-              <th style={{ textAlign: 'right' }}>Total</th>
-              <th>Status</th>
-              <th>Change status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 24, color: 'var(--slate-500)' }}>No orders found.</td></tr>
-            ) : filtered.map((order) => {
-              const st = getOrderStatus(order)
-              const canCancel = canCancelOrder(order)
-              const borrowed = order.borrowedCount ?? order.borrowed_count ?? 0
-              return (
-                <tr key={order.orderId}>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <b style={{ fontFamily: 'var(--mono)', color: 'var(--slate-900)', fontSize: 13 }}>{order.orderId}</b>
-                      <button className="btn-xs" style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => { navigator.clipboard.writeText(order.orderId); showToast && showToast('Copied ' + order.orderId) }} title="Copy">⎘</button>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--slate-900)' }}>{formatOrderDateShort(order.date)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>{order.status}</div>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: 13 }}>{order.customerName}</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--slate-500)' }}>{order.phone || '—'} • {order.address}</div>
-                    {order.notes && <div style={{ fontSize: 11.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '2px 6px', marginTop: 4, display: 'inline-block' }}>📝 {order.notes}</div>}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 160 }}>
-                      {order.items.map((it, i) => {
-                        const p = it.product || productById[it.productId]
-                        const isBorrow = it.is_borrow || p?.bottleSituation === 'BORROW'
-                        return <div key={i} style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
-                          <span style={{ fontWeight: 600, color: 'var(--slate-900)' }}>{p.name} ({p.container})</span>
-                          <span style={{ color: 'var(--slate-500)' }}>×{it.quantity}</span>
-                          {isBorrow && <span className="pill amber" style={{ fontSize: 10, padding: '1px 5px' }}>Borrow</span>}
-                        </div>
-                      })}
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    {borrowed > 0 ? <span className="pill amber" style={{ fontSize: 12, fontWeight: 800, padding: '3px 8px', borderColor: '#fde68a' }}>🤝 {borrowed} gals</span> : <span className="pill slate" style={{ fontSize: 11 }}>— 0</span>}
-                    {borrowed > 0 && <div style={{ fontSize: 10, color: '#92400e', fontWeight: 600, marginTop: 2 }}>Audit</div>}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <select value={getPaymentStatus(order).id} onChange={e => handlePaymentStatusChange(order.orderId, e.target.value)} style={{ padding: '4px 6px', borderRadius: 8, border: `1px solid ${getPaymentStatus(order).id==='PAID' ? '#a7f3d0' : '#fde68a'}`, fontSize: 11, fontWeight: 600, background: getPaymentStatus(order).id==='PAID' ? '#dcfce7' : '#fef3c7', color: getPaymentStatus(order).id==='PAID' ? '#065f46' : '#92400e' }}>
-                      <option value="PAID">Paid</option>
-                      <option value="UNPAID">Unpaid</option>
-                    </select>
-                  </td>
-                  <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--slate-900)' }}>
-                    <div>{peso(getOrderDisplayTotal(order))}</div>
-                    {(order.borrowedCount ?? order.borrowed_count ?? 0) > 0 && getPaymentStatus(order).id === 'UNPAID' && getOrderDisplayTotal(order) !== order.total && <div style={{ fontSize: 10, color: '#92400e', fontWeight: 600 }}>container price</div>}
-                    {(order.borrowedCount ?? 0) > 0 && getPaymentStatus(order).id === 'UNPAID' && <div style={{ fontSize: 10, color: '#92400e' }}>borrowed {order.borrowedCount ?? order.borrowed_count} gals</div>}
-                  </td>
-                  <td><StatusPill statusId={st.id} /></td>
-                  <td>
-                    <select value={st.id} onChange={e => {
-                      const requested = e.target.value
-                      const next = resolveStatusForOrder(order, requested)
-                      if (next !== requested) {
-                        const notice = autoMoveNotice(next)
-                        showToast && showToast(notice || `Auto-moved → ${next}`)
-                      }
-                      handleStatusChange(order.orderId, next)
-                    }} style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 600, background: 'var(--white)' }}>
-                      {getValidStatuses(order).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                    </select>
-                    {!needsPickup(order) && <div style={{ fontSize: 10, color: '#92400e', fontWeight: 600, marginTop: 2 }}>No pick-up</div>}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <button className="btn-xs" style={{ padding: '6px 10px' }} onClick={() => setSelected(order)}>View</button>
-                      {st.id === 'PENDING' && (
-                        <button className="btn-xs primary" style={{ padding: '6px 10px', background: '#1a7bb8', borderColor: '#1a7bb8', color: 'white' }} title="Confirm order" onClick={() => handleStatusChange(order.orderId, 'CONFIRMED')}>✓ Confirm</button>
-                      )}
-                      {needsPickup(order) && (st.id === 'CONFIRMED' || st.id === 'TO_PICK_UP') && (
-                        <button className="btn-xs primary" style={{ padding: '6px 10px', background: '#7c3aed', borderColor: '#7c3aed', color: 'white' }} title="Empties collected — move to Preparing" onClick={() => handleStatusChange(order.orderId, 'PREPARING')}>🛻 Picked Up</button>
-                      )}
-                      {st.id === 'PREPARING' && (
-                        <button className="btn-xs primary" style={{ padding: '6px 10px', background: '#059669', borderColor: '#059669', color: 'white' }} title="Ready — move to Out for Delivery (delivery list)" onClick={() => handleStatusChange(order.orderId, 'OUT_FOR_DELIVERY')}>🚚 Out for Delivery</button>
-                      )}
-                      {st.id === 'OUT_FOR_DELIVERY' && (
-                        <button className="btn-xs primary" style={{ padding: '6px 10px', background: '#334155', borderColor: '#334155', color: 'white' }} title="Delivered to customer" onClick={() => handleStatusChange(order.orderId, 'DELIVERED')}>✓ Delivered</button>
-                      )}
-                      {canCancel && <button className="btn-xs danger" style={{ padding: '6px 10px' }} onClick={() => handleCancel(order.orderId)}>Cancel</button>}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Suspense fallback={<div style={{ padding: '24px 18px', color: 'var(--slate-500)', fontSize: 13 }}>Loading orders grid…</div>}>
+        <OrdersAgGrid
+          rowData={filtered}
+          onView={(order) => setSelected(order)}
+          onStatusChange={handleStatusChange}
+          onPaymentChange={handlePaymentStatusChange}
+          onCancel={handleCancel}
+          showToast={showToast}
+        />
+      </Suspense>
 
       <div style={{ margin: '0 18px', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0 6px' }}>
         <button

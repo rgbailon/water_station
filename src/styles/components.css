@@ -187,6 +187,73 @@
 
 /* ===== Table ===== */
 .table-wrap { padding: 0 18px 18px; overflow-x: auto; }
+
+/* ===== Orders AG Grid ===== */
+.orders-grid-wrap { padding: 0 18px 18px; }
+/* Sticky top horizontal scrollbar — synced with grid body, always reachable */
+.orders-grid-top-scroll {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  height: 18px;
+  margin-bottom: 8px;
+  scrollbar-color: #64748b var(--slate-100);
+}
+.orders-grid-top-scroll-inner { height: 1px; }
+.orders-grid-top-scroll::-webkit-scrollbar { height: 14px; }
+.orders-grid-top-scroll::-webkit-scrollbar-track { background: var(--slate-100); border-radius: 8px; }
+.orders-grid-top-scroll::-webkit-scrollbar-thumb { background: #64748b; border-radius: 8px; border: 3px solid var(--slate-100); }
+.orders-grid-top-scroll::-webkit-scrollbar-thumb:hover { background: var(--blue-600); }
+[data-theme="dark"] .orders-grid-top-scroll { background: #0f172a; border-color: #334155; scrollbar-color: #64748b #0f172a; }
+[data-theme="dark"] .orders-grid-top-scroll::-webkit-scrollbar-track { background: #0f172a; }
+[data-theme="dark"] .orders-grid-top-scroll::-webkit-scrollbar-thumb { border-color: #0f172a; }
+.orders-grid-wrap .ag-theme-quartz,
+.orders-grid-wrap .ag-theme-quartz-dark {
+  --ag-font-family: var(--font);
+  --ag-font-size: 13px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--slate-200);
+}
+.orders-grid-wrap .ag-theme-quartz {
+  --ag-background-color: #e2e8f0;
+  --ag-odd-row-background-color: #ffffff;
+  --ag-header-background-color: var(--slate-100);
+  --ag-row-hover-color: #f0f8fe;
+  --ag-border-color: var(--slate-200);
+  --ag-header-foreground-color: var(--slate-500);
+}
+/* Zebra striping — dark grid theme */
+.orders-grid-wrap .ag-theme-quartz-dark {
+  --ag-background-color: #1e293b;
+  --ag-odd-row-background-color: #0f172a;
+}
+/* Zebra striping — explicit row colors (beat AG Grid's base rules regardless of theme load order) */
+.orders-grid-wrap .ag-theme-quartz .ag-row:not(.ag-header-row):not(.ag-row-odd) { background-color: #e2e8f0; }
+.orders-grid-wrap .ag-theme-quartz .ag-row.ag-row-odd { background-color: #ffffff; }
+.orders-grid-wrap .ag-theme-quartz-dark .ag-row:not(.ag-header-row):not(.ag-row-odd),
+[data-theme="dark"] .orders-grid-wrap .ag-theme-quartz .ag-row:not(.ag-header-row):not(.ag-row-odd) { background-color: #1e293b; }
+.orders-grid-wrap .ag-theme-quartz-dark .ag-row.ag-row-odd,
+[data-theme="dark"] .orders-grid-wrap .ag-theme-quartz .ag-row.ag-row-odd { background-color: #0f172a; }
+.orders-grid-wrap .ag-root-wrapper { border-radius: 12px; }
+.orders-grid-wrap .ag-header-cell-label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+.orders-grid-wrap .ag-cell { line-height: 1.4; display: flex; align-items: center; }
+.orders-grid-wrap .ag-cell.ag-cell-wrap-text { align-items: flex-start; padding-top: 8px; padding-bottom: 8px; }
+.orders-grid-wrap .ag-paging-panel { border-top: 1px solid var(--slate-200); font-size: 12px; }
+[data-theme="dark"] .orders-grid-wrap .ag-theme-quartz {
+  --ag-background-color: #1e293b;
+  --ag-odd-row-background-color: #0f172a;
+  --ag-header-background-color: #0f172a;
+  --ag-row-hover-color: #162e4a;
+  --ag-foreground-color: #cbd5e1;
+  --ag-header-foreground-color: #94a3b8;
+  --ag-border-color: #334155;
+}
 .table {
   width: 100%;
   border-collapse: separate;
