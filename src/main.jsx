@@ -4,6 +4,7 @@ import './styles/global.css'
 import './styles/layout.css'
 import './styles/calendar.css'
 import './styles/components.css'
+import './styles/bubbles.css'
 import './styles/print.css'
 import App from './App.jsx'
 

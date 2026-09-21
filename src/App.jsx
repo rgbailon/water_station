@@ -12,6 +12,7 @@ import DailyPrintSheet from './components/DailyPrintSheet'
 import { initialEvents, inventoryItems as initialInventory, hiramRecords as initialHiram, expensesList as initialExpenses } from './data/mockData'
 import { defaultSampleOrders, ORDER_STORE_SPEC, sampleProducts, recomputeOrderTotals, getOrderStatus, resolveStatusForOrder, autoMoveNotice, normalizeStatusId } from './data/ordersData'
 import DashboardView from './components/DashboardView'
+import BubbleBackground from './components/BubbleBackground'
 import OrdersView from './components/OrdersView'
 import MessagesView from './components/MessagesView'
 import ProductsView from './components/ProductsView'
@@ -634,6 +635,7 @@ export default function App() {
 
   return (
     <>
+      <BubbleBackground />
       <Header onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} dbStatus={dbStatus} syncing={syncing} soundOn={soundOn} onToggleSound={handleToggleSound} lastSyncAt={lastSyncAt} />
 
       <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>

@@ -57,11 +57,13 @@ html, body {
   margin: 0;
   padding: 0;
   font-family: var(--font);
-  background: var(--bg);
+  background: linear-gradient(180deg, #6fb8e2 0%, #9bd2ef 48%, #abd8f0 100%);
+  background-attachment: fixed;
   color: var(--slate-700);
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.22s ease, color 0.22s ease;
 }
+[data-theme="dark"] body { background: var(--bg); }
 
 button { font-family: inherit; }
 a { color: inherit; }
