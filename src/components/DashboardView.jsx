@@ -1,6 +1,12 @@
-import { peso, formatISO, formatMonthYear } from '../utils/dateUtils'
-import { expensesList, hiramRecords } from '../data/mockData'
+import { peso, formatISO, formatMonthYear, manilaISODate } from '../utils/dateUtils'
 import { exportDashboardExcel } from '../utils/export'
+import {
+  getOrderStatus,
+  getPaymentStatus,
+  getOrderTime,
+  barangayFromAddress,
+  formatOrderDateShort,
+} from '../data/ordersData'
 
 // --- mini charts ---
 
@@ -67,10 +73,11 @@ function BarHorizontal({ rows, max }) {
   )
 }
 
-function Donut({ sale, delivery }) {
-  const total = sale + delivery || 1
-  const salePct = (sale/total)*100
-  const deliveryPct = 100 - salePct
+function Donut({ sale, delivery, saleLabel = 'Walk-in Sale', deliveryLabel = 'Delivery', saleColor = '#1a7bb8', deliveryColor = '#10b981', insight = null }) {
+  const total = (Number(sale) || 0) + (Number(delivery) || 0)
+  const hasData = total > 0
+  const salePct = hasData ? (sale / total) * 100 : 0
+  const deliveryPct = hasData ? 100 - salePct : 0
   const r = 54
   const c = 2*Math.PI*r
   const saleDash = (salePct/100)*c
@@ -79,122 +86,165 @@ function Donut({ sale, delivery }) {
     <div style={{ display:'flex', gap:18, alignItems:'center' }}>
       <svg width="132" height="132" viewBox="0 0 132 132">
         <circle cx="66" cy="66" r={r} fill="none" stroke="var(--slate-100)" strokeWidth="16" />
-        <circle cx="66" cy="66" r={r} fill="none" stroke="#1a7bb8" strokeWidth="16" strokeDasharray={`${saleDash} ${c}`} strokeDashoffset="25" strokeLinecap="round" transform="rotate(-90 66 66)" />
-        <circle cx="66" cy="66" r={r} fill="none" stroke="#10b981" strokeWidth="16" strokeDasharray={`${delDash} ${c}`} strokeDashoffset={`${c - delDash + 25}`} strokeLinecap="round" transform="rotate(-90 66 66)" />
+        {hasData && <circle cx="66" cy="66" r={r} fill="none" stroke={saleColor} strokeWidth="16" strokeDasharray={`${saleDash} ${c}`} strokeDashoffset="25" strokeLinecap="round" transform="rotate(-90 66 66)" />}
+        {hasData && deliveryPct > 0 && <circle cx="66" cy="66" r={r} fill="none" stroke={deliveryColor} strokeWidth="16" strokeDasharray={`${delDash} ${c}`} strokeDashoffset={`${c - delDash + 25}`} strokeLinecap="round" transform="rotate(-90 66 66)" />}
         <text x="66" y="60" textAnchor="middle" fontSize="14" fontWeight="800" fill="var(--slate-900)">{peso(total)}</text>
         <text x="66" y="76" textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--slate-500)">TOTAL</text>
       </svg>
       <div style={{ display:'grid', gap:10, flex:1 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10, padding:'10px 12px' }}>
-          <span style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontWeight:600, color:'var(--slate-700)' }}><span style={{ width:10, height:10, borderRadius:4, background:'#1a7bb8', display:'inline-block' }}></span> Walk-in Sale</span>
-          <span style={{ fontWeight:800, fontSize:13, color:'#1a7bb8' }}>{peso(sale)} <span style={{ fontWeight:600, color:'var(--slate-500)', fontSize:11 }}>({salePct.toFixed(0)}%)</span></span>
+          <span style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontWeight:600, color:'var(--slate-700)' }}><span style={{ width:10, height:10, borderRadius:4, background:saleColor, display:'inline-block' }}></span> {saleLabel}</span>
+          <span style={{ fontWeight:800, fontSize:13, color:saleColor }}>{peso(sale)} <span style={{ fontWeight:600, color:'var(--slate-500)', fontSize:11 }}>({salePct.toFixed(0)}%)</span></span>
         </div>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10, padding:'10px 12px' }}>
-          <span style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontWeight:600, color:'var(--slate-700)' }}><span style={{ width:10, height:10, borderRadius:4, background:'#10b981', display:'inline-block' }}></span> Delivery</span>
-          <span style={{ fontWeight:800, fontSize:13, color:'#065f46' }}>{peso(delivery)} <span style={{ fontWeight:600, color:'var(--slate-500)', fontSize:11 }}>({deliveryPct.toFixed(0)}%)</span></span>
+          <span style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontWeight:600, color:'var(--slate-700)' }}><span style={{ width:10, height:10, borderRadius:4, background:deliveryColor, display:'inline-block' }}></span> {deliveryLabel}</span>
+          <span style={{ fontWeight:800, fontSize:13, color:deliveryColor }}>{peso(delivery)} <span style={{ fontWeight:600, color:'var(--slate-500)', fontSize:11 }}>({deliveryPct.toFixed(0)}%)</span></span>
         </div>
         <div style={{ fontSize:11, color:'var(--slate-500)', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8, padding:'8px 10px' }}>
-          <b style={{ color:'#065f46' }}>Insight:</b> {sale > delivery ? 'Walk-in drives majority — keep front stock ready.' : 'Deliveries lead — fuel cost watch on Monbon route.'}
+          <b style={{ color:'#065f46' }}>Insight:</b> {insight || (sale >= delivery ? 'Walk-in drives majority — keep front stock ready.' : 'Deliveries lead — fuel cost watch on Monbon route.')}
         </div>
       </div>
     </div>
   )
 }
 
-export default function DashboardView({ events, inventory, currentDate, onAddEntry }) {
+export default function DashboardView({ events, inventory, currentDate, onAddEntry, orders = [], expenses = [] }) {
+  // ---- Source of truth: live orders (revenue) + live expense ledger (costs) ----
+  // Canceled orders never count toward sales, collection or hiram.
+  const manilaToday = manilaISODate(Date.now())
+  const manilaYesterday = manilaISODate(Date.now() - 86400000)
+  const liveOrders = (orders || []).filter(o => getOrderStatus(o).id !== 'CANCELED')
+  const canceledCount = (orders || []).length - liveOrders.length
+  // The stored `total` column is the amount — summed as-is, never recomputed.
+  const orderTotal = (o) => { const t = Number(o?.total); return Number.isFinite(t) ? t : 0 }
+  const orderDay = (o) => manilaISODate(getOrderTime(o))
+  // Orders whose date can't be parsed are counted separately and flagged in the UI —
+  // never silently dropped into the wrong month.
+  const undatedOrders = liveOrders.filter(o => !Number.isFinite(getOrderTime(o)))
+  const datedOrders = liveOrders.filter(o => Number.isFinite(getOrderTime(o)))
+
   let monthKey = formatISO(currentDate).slice(0,7)
-  let monthEvents = events.filter(e => e.date.startsWith(monthKey))
+  let monthOrders = datedOrders.filter(o => orderDay(o).startsWith(monthKey))
   let effectiveDate = currentDate
-  // fallback to latest event month if current month empty (demo data is Sep 2026)
-  if (monthEvents.length === 0 && events.length > 0) {
-    const latest = [...events].sort((a,b)=> b.date.localeCompare(a.date))[0]
-    monthKey = latest.date.slice(0,7)
-    monthEvents = events.filter(e => e.date.startsWith(monthKey))
-    effectiveDate = new Date(latest.date + 'T00:00:00')
+  // fallback to latest order month when the viewed month has no orders yet
+  if (monthOrders.length === 0 && datedOrders.length > 0) {
+    const latest = [...datedOrders].sort((a,b)=> getOrderTime(b) - getOrderTime(a))[0]
+    monthKey = orderDay(latest).slice(0,7)
+    monthOrders = datedOrders.filter(o => orderDay(o).startsWith(monthKey))
+    effectiveDate = new Date(`${monthKey}-01T00:00:00`)
   }
-  const todayISO = formatISO(new Date())
-  const dayEvents = events.filter(e => e.date === todayISO)
+
   const monthLabel = formatMonthYear(effectiveDate)
+  const monthShort = (() => { try { return effectiveDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short' }) } catch { return monthLabel.split(' ')[0] } })()
 
-  // sales totals
-  const isSaleLike = e => e.type === 'sale' || e.type === 'delivery'
-  const todaySales = dayEvents.filter(isSaleLike).reduce((s,e)=>s+e.amount,0)
-  const yesterdayISO = (()=>{ const d=new Date(); d.setDate(d.getDate()-1); return formatISO(d)})()
-  const yesterdaySales = events.filter(e=>e.date===yesterdayISO && isSaleLike(e)).reduce((s,e)=>s+e.amount,0)
-  const trend = yesterdaySales===0 ? 0 : Math.round(((todaySales - yesterdaySales)/yesterdaySales)*100)
-  const monthSales = monthEvents.filter(isSaleLike).reduce((s,e)=>s+e.amount,0)
-  const monthExpenses = monthEvents.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0)
-  // fallback to expensesList if no expense events for month
-  const expenseTotalFallback = expensesList.reduce((s,e)=>s+e.amount,0)
-  const displayExpense = monthExpenses || expenseTotalFallback
-  const net = monthSales - displayExpense
+  // today / yesterday (Manila calendar days) — PAID only: paid products are sales
+  const todayOrders = liveOrders.filter(o => orderDay(o) === manilaToday)
+  const paidTodayOrders = todayOrders.filter(o => getPaymentStatus(o).id === 'PAID')
+  const todaySales = paidTodayOrders.reduce((s,o)=>s+orderTotal(o),0)
+  const yesterdaySales = liveOrders.filter(o => orderDay(o) === manilaYesterday && getPaymentStatus(o).id === 'PAID').reduce((s,o)=>s+orderTotal(o),0)
+  const trend = yesterdaySales > 0
+    ? Math.round(((todaySales - yesterdaySales)/yesterdaySales)*100)
+    : (todaySales > 0 ? null : 0) // null = first sales, no baseline — never fake "+0%"
+  const trendText = trend === null
+    ? '★ first sales — no baseline'
+    : (trend === 0 && todaySales === 0 ? '— no sales yet' : `${trend >= 0 ? `↗ +${trend}%` : `↘ ${trend}%`} vs yesterday`)
 
-  const saleTotal = monthEvents.filter(e=>e.type==='sale').reduce((s,e)=>s+e.amount,0)
-  const deliveryTotal = monthEvents.filter(e=>e.type==='delivery').reduce((s,e)=>s+e.amount,0)
+  // month revenue — business rule: PAID products are sales.
+  // Hiram / borrowed bottles follow the same rule: paid = sale, unpaid = receivable.
+  const paidMonthOrders = monthOrders.filter(o => getPaymentStatus(o).id === 'PAID')
+  const monthSales = paidMonthOrders.reduce((s,o)=>s+orderTotal(o),0)
+  const monthGross = monthOrders.reduce((s,o)=>s+orderTotal(o),0)
+  const paidRevenue = monthSales
+  const unpaidRevenue = monthGross - monthSales
+  const paidCount = paidMonthOrders.length
 
-  // daily trend for current month (1..30)
+  // month expenses from the live ledger — same month scope, skip archived
+  const monthExpenses = (expenses || []).filter(e => !e.is_archived && String(e.date || '').startsWith(monthKey))
+  const expenseTotal = monthExpenses.reduce((s,e)=>s+(Number(e.amount) || 0),0)
+  const net = monthSales - expenseTotal
+
+  // elapsed days — a partial month must not be averaged over its full length
   const daysInMonth = new Date(effectiveDate.getFullYear(), effectiveDate.getMonth()+1, 0).getDate()
+  const isCurrentMonth = monthKey === manilaToday.slice(0,7)
+  const elapsedDays = isCurrentMonth ? Math.max(1, Number(manilaToday.slice(8,10))) : daysInMonth
+
+  // daily trend for the viewed month (paid sales only)
   const daily = Array.from({ length: daysInMonth }, (_,i)=>{
     const day = String(i+1).padStart(2,'0')
     const iso = `${monthKey}-${day}`
-    const v = events.filter(e=>e.date===iso && isSaleLike(e)).reduce((s,e)=>s+e.amount,0)
+    const v = paidMonthOrders.filter(o => orderDay(o) === iso).reduce((s,o)=>s+orderTotal(o),0)
     return { label: String(i+1), iso, value: v }
   })
 
   // last 14 days window for sparkline to keep chart readable
   const last14 = daily.slice(Math.max(0, daily.length-14))
 
-  // barangay aggregation
+  // barangay aggregation from delivery addresses (paid sales only)
   const barangayMap = {}
-  monthEvents.filter(isSaleLike).forEach(e=>{
-    const k = (e.customer || 'Other').replace(/^Brgy\.?\s*/i,'').trim() || 'Other'
-    barangayMap[k] = (barangayMap[k]||0)+ e.amount
+  paidMonthOrders.forEach(o=>{
+    const k = barangayFromAddress(o.address)
+    barangayMap[k] = (barangayMap[k]||0) + orderTotal(o)
   })
   const barangayRowsRaw = Object.entries(barangayMap).map(([label,value])=>({label, value})).sort((a,b)=>b.value-a.value).slice(0,5)
   const barangayColors = ['var(--blue-600)','var(--teal)','var(--cyan)','var(--green)','var(--amber)']
   const barangayRows = barangayRowsRaw.map((r,i)=>({...r, color: barangayColors[i%barangayColors.length]}))
-  const bMax = Math.max(1, ...barangayRows.map(r=>r.value), 4000)
+  const bMax = Math.max(1, ...barangayRows.map(r=>r.value))
 
-  // expense breakdown from events
-  const expMap = {}
-  monthEvents.filter(e=>e.type==='expense').forEach(e=>{
-    // try to categorize by first part before ' -' or before ' '
-    const raw = e.title || 'Other'
-    const cat = raw.split(' -')[0].split(' ')[0].trim() || raw.slice(0,12)
-    expMap[cat] = (expMap[cat]||0)+e.amount
+  // expense breakdown by real ledger category
+  const expGroups = {}
+  monthExpenses.forEach(e=>{
+    const cat = String(e.category || 'Other').trim() || 'Other'
+    expGroups[cat] = (expGroups[cat]||0) + (Number(e.amount) || 0)
   })
-  // fallback if no events expense categories, use expensesList
-  let expenseRows = Object.entries(expMap).map(([label,value])=>({label,value,color:'#ef4444'})).sort((a,b)=>b.value-a.value).slice(0,5)
-  if (expenseRows.length===0) {
-    const m={}
-    expensesList.forEach(e=>{ m[e.category]=(m[e.category]||0)+e.amount })
-    expenseRows = Object.entries(m).map(([label,value])=>({label,value,color:'#ef4444'})).sort((a,b)=>b.value-a.value)
-  }
+  const expenseRows = Object.entries(expGroups).map(([label,value])=>({label,value,color:'#ef4444'})).sort((a,b)=>b.value-a.value).slice(0,5)
   const expMax = Math.max(1, ...expenseRows.map(r=>r.value))
+  const topExpense = expenseRows[0]?.label || null
 
-  // inventory
-  const lowItems = inventory.filter(it=>it.stockFilled <= it.threshold)
-  const totalFilled = inventory.reduce((s,it)=>s+it.stockFilled,0)
-  const totalEmpty = inventory.reduce((s,it)=>s+it.stockEmpty,0)
+  // inventory (null-safe for DB rows)
+  const filledOf = (it) => it.stockFilled ?? it.stock_filled ?? 0
+  const emptyOf = (it) => it.stockEmpty ?? it.stock_empty ?? 0
+  const lowItems = inventory.filter(it=>filledOf(it) <= (it.threshold ?? 0))
+  const totalFilled = inventory.reduce((s,it)=>s+filledOf(it),0)
+  const totalEmpty = inventory.reduce((s,it)=>s+emptyOf(it),0)
 
-  // recent transactions
-  const recent = [...events].sort((a,b)=> b.date.localeCompare(a.date) || (b.id||'').localeCompare(a.id||'')).slice(0,6)
+  // recent transactions — latest orders, newest first
+  const recent = [...(orders || [])].sort((a,b)=> (getOrderTime(b) || -1) - (getOrderTime(a) || -1)).slice(0,6)
 
-  const hiramOutstanding = hiramRecords.filter(r=>r.status!=='returned').reduce((s,r)=>s+(r.borrowed - r.returned),0)
-  const hiramCount = hiramRecords.filter(r=>r.status!=='returned').length
+  // hiram audited from live orders (borrowed gallons still out)
+  const borrowedOrders = liveOrders.filter(o => (o.borrowedCount ?? o.borrowed_count ?? 0) > 0)
+  const hiramOutstanding = borrowedOrders.reduce((s,o)=>s+(o.borrowedCount ?? o.borrowed_count ?? 0),0)
+
+  console.log('[Dashboard]', {
+    monthKey, monthLabel,
+    ordersTotal: (orders || []).length,
+    live: liveOrders.length,
+    canceled: canceledCount,
+    undated: undatedOrders.length,
+    monthOrders: monthOrders.length,
+    paid: paidCount,
+    sales: monthSales,
+    expensesLedger: (expenses || []).length,
+    monthExpenses: monthExpenses.length,
+    sampleDay: (orders || [])[0] ? orderDay((orders || [])[0]) : '(none)',
+  })
 
   return (
     <div className="dashboard">
       <div className="section-head" style={{ borderTop:'none' }}>
         <div>
           <h2>📊 Dashboard • {monthLabel}</h2>
-          <p>Sales, deliveries & stock — live from calendar events • Auto-updates when you add entries</p>
+          <p>Sales (paid only), collection & stock — live from orders, expenses & stock • Canceled orders excluded</p>
         </div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--slate-500)', background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:999, padding:'6px 12px' }}>
-            <span style={{ width:8, height:8, borderRadius:999, background:'#22c55e', display:'inline-block' }}></span> {monthEvents.length} events • {inventory.length} SKUs
+            <span style={{ width:8, height:8, borderRadius:999, background:'#22c55e', display:'inline-block' }}></span> {monthOrders.length} orders • {inventory.length} SKUs{canceledCount > 0 ? ` • ${canceledCount} canceled` : ''}
           </div>
-          <button className="btn btn-ghost" style={{ background:'white', color:'var(--slate-700)', border:'1px solid var(--slate-200)', padding:'9px 14px', fontSize:'13px', fontWeight:600 }} onClick={()=> exportDashboardExcel({ events, inventory, currentDate })} title="Download spreadsheet">⬇ Download</button>
+          {undatedOrders.length > 0 && (
+            <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:999, padding:'6px 12px' }}>
+              ⚠ {undatedOrders.length} order{undatedOrders.length > 1 ? 's have' : ' has'} no usable date — excluded from month math
+            </div>
+          )}
+          <button className="btn btn-ghost" style={{ background:'white', color:'var(--slate-700)', border:'1px solid var(--slate-200)', padding:'9px 14px', fontSize:'13px', fontWeight:600 }} onClick={()=> exportDashboardExcel({ events, inventory, currentDate, orders, expenses })} title="Download spreadsheet">⬇ Download</button>
         </div>
       </div>
 
@@ -203,22 +253,22 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
         <div className="stat-card blue">
           <div className="stat-top"><span className="stat-label">Today&apos;s Sales</span><span className="stat-icon">💧</span></div>
           <div className="stat-value">{peso(todaySales)}</div>
-          <div className={`stat-trend ${trend>=0 ? 'trend-up':'trend-down'}`}>{trend>=0 ? `↗ +${trend}%` : `↘ ${trend}%`} vs yesterday • {dayEvents.filter(isSaleLike).length} orders</div>
+          <div className={`stat-trend ${trend === null || trend >= 0 ? 'trend-up':'trend-down'}`}>{trendText} • {paidTodayOrders.length} paid</div>
         </div>
         <div className="stat-card green">
           <div className="stat-top"><span className="stat-label">Month Sales ({monthLabel})</span><span className="stat-icon">📦</span></div>
           <div className="stat-value">{peso(monthSales)}</div>
-          <div className="stat-trend trend-up">↗ {monthEvents.filter(isSaleLike).length} sales • {monthEvents.length} total entries</div>
+          <div className="stat-trend trend-up">{monthOrders.length} orders • {paidCount} paid</div>
         </div>
         <div className="stat-card amber">
           <div className="stat-top"><span className="stat-label">Hiram Outstanding</span><span className="stat-icon">🤝</span></div>
           <div className="stat-value">{hiramOutstanding} gals</div>
-          <div className="stat-trend" style={{ color:'#d97706' }}>{hiramCount} customers • {lowItems.length ? `${lowItems.length} low stock` : 'stock ok'}</div>
+          <div className="stat-trend" style={{ color:'#d97706' }}>{borrowedOrders.length} orders • {lowItems.length ? `${lowItems.length} low stock` : 'stock ok'}</div>
         </div>
         <div className="stat-card red">
           <div className="stat-top"><span className="stat-label">Expenses (Month)</span><span className="stat-icon">💸</span></div>
-          <div className="stat-value">{peso(displayExpense)}</div>
-          <div className={`stat-trend ${net>=0?'trend-up':'trend-down'}`}>{net>=0 ? `Net ${peso(net)} profit` : `Net ${peso(net)} • watch costs`} • Fuel + electric</div>
+          <div className="stat-value">{peso(expenseTotal)}</div>
+          <div className={`stat-trend ${net>=0?'trend-up':'trend-down'}`}>{net>=0 ? `Net ${peso(net)} profit` : `Net ${peso(net)} • watch costs`} • {topExpense ? `Top: ${topExpense}` : 'No expenses yet'}</div>
         </div>
       </div>
 
@@ -233,11 +283,11 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, marginTop:12 }}>
             <div style={{ background:'var(--blue-50)', border:'1px solid #dbeafe', borderRadius:10, padding:'10px', textAlign:'center' }}>
               <div style={{ fontSize:11, fontWeight:700, color:'var(--slate-500)', letterSpacing:'.06em', textTransform:'uppercase' }}>Peak Day</div>
-              <div style={{ fontWeight:800, color:'var(--slate-900)', fontSize:14 }}>{(() => { const p = [...daily].sort((a,b)=>b.value-a.value)[0]; return p ? `${monthLabel.split(' ')[0]} ${p.label} • ${peso(p.value)}` : '—' })()}</div>
+              <div style={{ fontWeight:800, color:'var(--slate-900)', fontSize:14 }}>{(() => { const p = [...daily].sort((a,b)=>b.value-a.value)[0]; return (p && p.value > 0) ? `${monthShort} ${p.label} • ${peso(p.value)}` : '—' })()}</div>
             </div>
             <div style={{ background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10, padding:'10px', textAlign:'center' }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'var(--slate-500)', letterSpacing:'.06em', textTransform:'uppercase' }}>Avg / day</div>
-              <div style={{ fontWeight:800, color:'var(--slate-900)', fontSize:14 }}>{peso(Math.round(monthSales / Math.max(1,daysInMonth)))}</div>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--slate-500)', letterSpacing:'.06em', textTransform:'uppercase' }}>Avg / day ({elapsedDays}d elapsed)</div>
+              <div style={{ fontWeight:800, color:'var(--slate-900)', fontSize:14 }}>{peso(Math.round(monthSales / Math.max(1,elapsedDays)))}</div>
             </div>
             <div style={{ background: net>=0 ? '#f0fdf4':'#fef2f2', border:`1px solid ${net>=0 ? '#bbf7d0':'#fecaca'}`, borderRadius:10, padding:'10px', textAlign:'center' }}>
               <div style={{ fontSize:11, fontWeight:700, color:'var(--slate-500)', letterSpacing:'.06em', textTransform:'uppercase' }}>Month Net</div>
@@ -247,16 +297,24 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
         </div>
 
         <div className="chart-card">
-          <h3>Sales by Type</h3>
-          <Donut sale={saleTotal} delivery={deliveryTotal} />
+          <h3>Collection — Paid vs Receivable</h3>
+          <Donut
+            sale={paidRevenue}
+            delivery={unpaidRevenue}
+            saleLabel="Collected (Paid)"
+            deliveryLabel="Receivable (Unpaid)"
+            saleColor="#059669"
+            deliveryColor="#d97706"
+            insight={monthOrders.length === 0 ? 'No orders this month yet.' : (unpaidRevenue > paidRevenue ? `Receivables lead (${peso(unpaidRevenue)} unpaid) — follow up ${monthOrders.length - paidCount} unpaid orders.` : `Collection healthy — ${paidCount} of ${monthOrders.length} orders paid.`)}
+          />
           <div style={{ marginTop:14, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
             <div style={{ background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10, padding:'10px 12px' }}>
               <div style={{ fontSize:11, fontWeight:700, color:'var(--slate-500)', letterSpacing:'.06em', textTransform:'uppercase' }}>Total Orders</div>
-              <div style={{ fontWeight:800, fontSize:16, color:'var(--slate-900)' }}>{monthEvents.filter(isSaleLike).length}</div>
+              <div style={{ fontWeight:800, fontSize:16, color:'var(--slate-900)' }}>{monthOrders.length}</div>
             </div>
             <div style={{ background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10, padding:'10px 12px' }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'var(--slate-500)', letterSpacing:'.06em', textTransform:'uppercase' }}>Avg Ticket</div>
-              <div style={{ fontWeight:800, fontSize:16, color:'var(--slate-900)' }}>{peso(Math.round(monthSales / Math.max(1, monthEvents.filter(isSaleLike).length)))}</div>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--slate-500)', letterSpacing:'.06em', textTransform:'uppercase' }}>Avg Ticket (paid)</div>
+              <div style={{ fontWeight:800, fontSize:16, color:'var(--slate-900)' }}>{peso(Math.round(monthSales / Math.max(1, paidCount)))}</div>
             </div>
           </div>
         </div>
@@ -267,14 +325,14 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
           <h3>Revenue by Barangay</h3>
           {barangayRows.length===0 ? <div className="empty" style={{ padding:20 }}>No sales yet for {monthLabel}</div> : <BarHorizontal rows={barangayRows} max={bMax} />}
           <div style={{ marginTop:14, padding:'12px', background:'var(--blue-50)', border:'1px solid #dbeafe', borderRadius:10, fontSize:'13px', color:'var(--slate-700)' }}>
-            <b>Insight:</b> {barangayRows[0] ? `${barangayRows[0].label} drives ${Math.round((barangayRows[0].value/monthSales)*100)}% of revenue` : 'Add sales to see barangay breakdown'} — prioritize deliveries there. Avg expense {peso(Math.round(displayExpense/monthEvents.filter(isSaleLike).length||0))} per order.
+            <b>Insight:</b> {barangayRows[0] && monthSales > 0 ? `${barangayRows[0].label} drives ${Math.round((barangayRows[0].value/monthSales)*100)}% of revenue` : 'Add orders to see barangay breakdown'} — prioritize deliveries there. Avg expense {monthOrders.length > 0 ? peso(Math.round(expenseTotal/monthOrders.length)) : '—'} per order.
           </div>
         </div>
         <div className="chart-card">
           <h3>Expense Breakdown</h3>
           {expenseRows.length===0 ? <div className="empty" style={{ padding:20 }}>No expenses recorded</div> : <BarHorizontal rows={expenseRows.map(r=>({ ...r, color:'#ef4444' }))} max={expMax} />}
           <div style={{ marginTop:14, padding:'12px', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:10, fontSize:'13px', color:'#7f1d1d' }}>
-            <b>Watch:</b> Expenses are {monthSales ? Math.round((displayExpense/monthSales)*100) : 0}% of sales. {displayExpense>monthSales*0.6 ? 'High cost month — review fuel & maintenance.' : 'Cost ratio healthy.'}
+            <b>Watch:</b> Expenses are {monthSales > 0 ? Math.round((expenseTotal/monthSales)*100) : 0}% of sales. {expenseTotal > monthSales*0.6 && monthSales > 0 ? 'High cost month — review fuel & maintenance.' : 'Cost ratio healthy.'}
           </div>
         </div>
       </div>
@@ -288,16 +346,18 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
           </div>
           <div style={{ display:'grid', gap:10 }}>
             {inventory.slice(0,6).map(it=>{
-              const total = it.stockFilled + it.stockEmpty + it.threshold
-              const pct = total===0?0: Math.round((it.stockFilled / Math.max(total, it.threshold*3))*100)
-              const isLow = it.stockFilled <= it.threshold
+              const filled = filledOf(it)
+              const empty = emptyOf(it)
+              const denom = filled + empty
+              const pct = denom === 0 ? 0 : Math.round((filled / denom)*100)
+              const isLow = filled <= (it.threshold ?? 0)
               return (
                 <div key={it.id} className="dash-inv-row" style={{ display:'flex', gap:10, alignItems:'center' }}>
                   <div className="dash-icon" style={{ width:36, height:36, borderRadius:9, display:'grid', placeItems:'center', background:'var(--slate-100)', border:'1px solid var(--slate-200)', fontSize:16, filter:'grayscale(100%)', transition:'filter 0.2s ease, background 0.2s ease, border-color 0.2s ease' }}>{it.icon}</div>
                   <div style={{ flex:1 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:700 }}>
                       <span style={{ color:'var(--slate-900)' }}>{it.name}</span>
-                      <span style={{ color: isLow ? '#dc2626':'var(--slate-500)' }}>{it.stockFilled} <span style={{ fontWeight:500 }}>filled</span></span>
+                      <span style={{ color: isLow ? '#dc2626':'var(--slate-500)' }}>{filled} <span style={{ fontWeight:500 }}>filled{empty > 0 ? ` • ${empty} empty` : ''}</span></span>
                     </div>
                     <div className="progress" style={{ marginTop:4 }}><div className={isLow?'crit':pct<50?'warn':'ok'} style={{ width:`${Math.min(100,pct)}%` }}></div></div>
                   </div>
@@ -312,21 +372,26 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
         <div className="list-card">
           <h3>Recent Transactions</h3>
           <div style={{ display:'grid', gap:8 }}>
-            {recent.map(ev=> (
-              <div key={ev.id} className="dash-recent-row" style={{ display:'flex', gap:10, alignItems:'center', padding:'10px 12px', background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10 }}>
-                <span className="dash-recent-icon" style={{ width:32, height:32, borderRadius:8, display:'grid', placeItems:'center', background:'white', border:'1px solid var(--slate-200)', fontSize:14, filter:'grayscale(100%)', transition:'filter 0.2s ease, background 0.2s ease' }}>{ev.icon}</span>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:12.5, fontWeight:700, color:'var(--slate-900)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ev.title}</div>
-                  <div style={{ fontSize:11, color:'var(--slate-500)' }}>{ev.date} • {ev.customer || '—'} {ev.note?`• ${ev.note.slice(0,22)}` : ''}</div>
+            {recent.length === 0 && <div className="empty" style={{ padding:20 }}>No orders yet</div>}
+            {recent.map(o=> {
+              const st = getOrderStatus(o)
+              const canceled = st.id === 'CANCELED'
+              return (
+                <div key={o.orderId} className="dash-recent-row" style={{ display:'flex', gap:10, alignItems:'center', padding:'10px 12px', background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10 }}>
+                  <span className="dash-recent-icon" style={{ width:32, height:32, borderRadius:8, display:'grid', placeItems:'center', background:'white', border:'1px solid var(--slate-200)', fontSize:14, filter:'grayscale(100%)', transition:'filter 0.2s ease, background 0.2s ease' }}>{canceled ? '✕' : '🧾'}</span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12.5, fontWeight:700, color:'var(--slate-900)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{o.orderId} • {o.customerName}</div>
+                    <div style={{ fontSize:11, color:'var(--slate-500)' }}>{formatOrderDateShort(o.date)} • {st.label} • {getPaymentStatus(o).label}</div>
+                  </div>
+                  <span style={{ fontWeight:800, color: canceled?'#dc2626':'var(--slate-900)', fontSize:12 }}>{peso(orderTotal(o))}</span>
                 </div>
-                <span style={{ fontWeight:800, color: ev.type==='expense'?'#dc2626':'var(--slate-900)', fontSize:12 }}>{ev.amount?peso(ev.amount):'—'}</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
           <div style={{ marginTop:10, display:'flex', gap:8 }}>
             <div style={{ flex:1, background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10, padding:'10px', textAlign:'center' }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'var(--slate-500)', letterSpacing:'.06em', textTransform:'uppercase' }}>Hiram Due</div>
-              <div style={{ fontWeight:800, color:'#92400e' }}>{hiramRecords.filter(r=>r.status==='overdue').length} overdue</div>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--slate-500)', letterSpacing:'.06em', textTransform:'uppercase' }}>Hiram Outstanding</div>
+              <div style={{ fontWeight:800, color:'#92400e' }}>{hiramOutstanding} gals • {borrowedOrders.length} orders</div>
             </div>
             <div style={{ flex:1, background:'var(--slate-50)', border:'1px solid var(--slate-200)', borderRadius:10, padding:'10px', textAlign:'center' }}>
               <div style={{ fontSize:11, fontWeight:700, color:'var(--slate-500)', letterSpacing:'.06em', textTransform:'uppercase' }}>Low Stock</div>
@@ -337,12 +402,13 @@ export default function DashboardView({ events, inventory, currentDate, onAddEnt
       </div>
 
       <div className="chart-card" style={{ margin:'0 18px 18px' }}>
-        <h3>September Summary</h3>
+        <h3>{monthLabel} Summary</h3>
         <div style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))' }}>
           {[
-            { k:'Total Sales', v: peso(saleTotal), c:'var(--blue-600)' },
-            { k:'Total Deliveries', v: peso(deliveryTotal), c:'var(--teal)' },
-            { k:'Total Expenses', v: peso(displayExpense), c:'var(--red)' },
+            { k:'Total Sales', v: peso(monthSales), c:'var(--blue-600)' },
+            { k:'Collected (Paid)', v: peso(paidRevenue), c:'var(--green)' },
+            { k:'Receivable (Unpaid)', v: peso(unpaidRevenue), c:'#d97706' },
+            { k:'Total Expenses', v: peso(expenseTotal), c:'var(--red)' },
             { k:'Net (Sales - Expenses)', v: peso(net), c: net>=0? 'var(--green)' : 'var(--red)' },
             { k:'Hiram Outstanding', v:`${hiramOutstanding} gals`, c:'#92400e' },
             { k:'Inventory SKUs', v:`${inventory.length} items`, c:'var(--slate-900)' },

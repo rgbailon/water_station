@@ -645,6 +645,8 @@ export default function App() {
               events={events}
               inventory={inventory}
               currentDate={currentDate}
+              orders={orders}
+              expenses={expenses}
               onAddEntry={() => { setEditingEvent(null); setModalDate(selectedDate) }}
             />
           )}

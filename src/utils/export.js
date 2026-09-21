@@ -1,5 +1,5 @@
-import { peso, nowPHString } from './dateUtils'
-import { getEffectivePrice, productById } from '../data/ordersData'
+import { peso, nowPHString, formatISO, manilaISODate } from './dateUtils'
+import { getEffectivePrice, productById, getOrderStatus, getPaymentStatus, getOrderTime, barangayFromAddress, formatOrderDateShort } from '../data/ordersData'
 
 function downloadBlob(content, filename, mime = 'application/vnd.ms-excel') {
   const blob = new Blob([content], { type: mime + ';charset=utf-8;' })
@@ -100,43 +100,52 @@ function sanitizeFilename(s) {
 
 // ---- Specific exports ----
 
-export function exportDashboardExcel({ events, inventory, currentDate }) {
+export function exportDashboardExcel({ events, inventory, currentDate, orders = [], expenses = [] }) {
   const d = currentDate instanceof Date ? currentDate : new Date()
-  let monthKey = d.toISOString().slice(0,7)
-  let monthEvents = events.filter(e => e.date.startsWith(monthKey))
+  // local month scope (never UTC) — same rule as the dashboard view
+  let monthKey = formatISO(d).slice(0,7)
+  const liveOrders = (orders || []).filter(o => getOrderStatus(o).id !== 'CANCELED')
+  // The stored `total` column is the amount — summed as-is, never recomputed.
+  const orderTotal = (o) => { const t = Number(o?.total); return Number.isFinite(t) ? t : 0 }
+  const orderDay = (o) => manilaISODate(getOrderTime(o))
+  const datedOrders = liveOrders.filter(o => Number.isFinite(getOrderTime(o)))
+  let monthOrders = datedOrders.filter(o => orderDay(o).startsWith(monthKey))
   let effective = d
-  if (monthEvents.length === 0 && events.length) {
-    const latest = [...events].sort((a,b)=> b.date.localeCompare(a.date))[0]
-    monthKey = latest.date.slice(0,7)
-    monthEvents = events.filter(e => e.date.startsWith(monthKey))
-    effective = new Date(latest.date + 'T00:00:00')
+  if (monthOrders.length === 0 && datedOrders.length) {
+    const latest = [...datedOrders].sort((a,b)=> getOrderTime(b) - getOrderTime(a))[0]
+    monthKey = orderDay(latest).slice(0,7)
+    monthOrders = datedOrders.filter(o => orderDay(o).startsWith(monthKey))
+    effective = new Date(`${monthKey}-01T00:00:00`)
   }
   const monthLabel = monthLabelFrom(effective)
-  const isSale = e => e.type === 'sale' || e.type === 'delivery'
-  const monthSales = monthEvents.filter(isSale).reduce((s,e)=>s+e.amount,0)
-  const saleTotal = monthEvents.filter(e=>e.type==='sale').reduce((s,e)=>s+e.amount,0)
-  const delTotal = monthEvents.filter(e=>e.type==='delivery').reduce((s,e)=>s+e.amount,0)
-  const expenseTotal = monthEvents.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0)
+  // Business rule: PAID products are sales; hiram/borrowed follow the same rule.
+  const paidMonthOrders = monthOrders.filter(o=>getPaymentStatus(o).id==='PAID')
+  const monthSales = paidMonthOrders.reduce((s,o)=>s+orderTotal(o),0)
+  const monthGross = monthOrders.reduce((s,o)=>s+orderTotal(o),0)
+  const paidTotal = monthSales
+  const unpaidTotal = monthGross - monthSales
+  const monthExpenses = (expenses || []).filter(e => !e.is_archived && String(e.date || '').startsWith(monthKey))
+  const expenseTotal = monthExpenses.reduce((s,e)=>s+(Number(e.amount) || 0),0)
   const net = monthSales - expenseTotal
 
   const map = {}
-  monthEvents.filter(isSale).forEach(e=>{
-    const k = (e.customer || 'Other').replace(/^Brgy\.?\s*/i,'').trim() || 'Other'
-    map[k] = (map[k]||0)+e.amount
+  paidMonthOrders.forEach(o=>{
+    const k = barangayFromAddress(o.address)
+    map[k] = (map[k]||0)+orderTotal(o)
   })
   const barangayRows = Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([k,v])=> [k, peso(v)])
   const daysInMonth = new Date(effective.getFullYear(), effective.getMonth()+1, 0).getDate()
   const dailyRows = Array.from({length: daysInMonth}, (_,i)=>{
     const day = String(i+1).padStart(2,'0')
     const iso = `${monthKey}-${day}`
-    const v = events.filter(e=>e.date===iso && isSale(e)).reduce((s,e)=>s+e.amount,0)
-    const count = events.filter(e=>e.date===iso && isSale(e)).length
-    return [day, iso, String(count), peso(v)]
+    const dayOrders = paidMonthOrders.filter(o => orderDay(o) === iso)
+    const v = dayOrders.reduce((s,o)=>s+orderTotal(o),0)
+    return [day, iso, String(dayOrders.length), peso(v)]
   }).filter(r => r[3] !== '₱0' || Number(r[2])>0)
-  const recentRows = [...events].sort((a,b)=> b.date.localeCompare(a.date)).slice(0,15).map(e=> [e.date, e.type.toUpperCase(), e.title, e.customer||'—', e.amount? peso(e.amount):'—', e.note||''])
+  const recentRows = [...(orders || [])].sort((a,b)=> (getOrderTime(b) || -1) - (getOrderTime(a) || -1)).slice(0,15).map(o=> [orderDay(o) || '—', getOrderStatus(o).label.toUpperCase(), o.orderId, `${o.customerName || ''} • ${o.address || ''}`, peso(orderTotal(o)), (o.items || []).map(it => `${it.quantity}x ${((it.product || productById[it.productId]) || {}).name || ''}`).join('; ').slice(0, 80)])
 
   const title = `TUBIG IROSIN — DASHBOARD`
-  const subtitle = `Water Refilling Station • Irosin, Sorsogon  •  ${monthLabel}  •  ${monthEvents.length} events  •  ${inventory.length} SKUs`
+  const subtitle = `Water Refilling Station • Irosin, Sorsogon  •  ${monthLabel}  •  ${monthOrders.length} orders  •  ${inventory.length} SKUs`
 
   // helper for aligned, properly sized tables
   const section = ({ subTitle, headers, rows, summary, colWidths }) => {
@@ -198,13 +207,14 @@ export function exportDashboardExcel({ events, inventory, currentDate }) {
     headers: ['Metric','Value'],
     colWidths: [520, 380],
     rows: [
-      ['Month Sales (sale + delivery)', peso(monthSales)],
-      ['Walk-in Sales', peso(saleTotal)],
-      ['Delivery Sales', peso(delTotal)],
+      ['Month Sales (paid orders only)', peso(monthSales)],
+      ['Collected (Paid)', peso(paidTotal)],
+      ['Receivable (Unpaid)', peso(unpaidTotal)],
       ['Expenses (month)', peso(expenseTotal)],
       ['Net (Sales − Expenses)', peso(net)],
-      ['Total Transactions (month)', String(monthEvents.length)],
-      ['Avg per Transaction', peso(Math.round(monthSales/Math.max(1, monthEvents.filter(isSale).length)))],
+      ['Total Orders (month)', String(monthOrders.length)],
+      ['Paid Orders (month)', String(paidMonthOrders.length)],
+      ['Avg per Paid Order', peso(Math.round(monthSales/Math.max(1, paidMonthOrders.length)))],
     ],
     summary: [{label:'Net Position', value: net>=0? `PROFIT ${peso(net)}` : `LOSS ${peso(net)}`}]
   })
@@ -229,9 +239,9 @@ export function exportDashboardExcel({ events, inventory, currentDate }) {
 
   // Expense
   const expMap = {}
-  monthEvents.filter(e=>e.type==='expense').forEach(e=>{
-    const cat = (e.title || 'Other').split(' -')[0].split(' ')[0].trim() || 'Other'
-    expMap[cat]=(expMap[cat]||0)+e.amount
+  monthExpenses.forEach(e=>{
+    const cat = String(e.category || 'Other').trim() || 'Other'
+    expMap[cat]=(expMap[cat]||0)+(Number(e.amount) || 0)
   })
   const expRows = Object.entries(expMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=> [k, peso(v)])
   combined += section({
@@ -258,9 +268,9 @@ export function exportDashboardExcel({ events, inventory, currentDate }) {
 
   // Recent
   combined += section({
-    subTitle: `Recent Transactions — Latest 15`,
-    headers: ['Date','Type','Title','Barangay / Customer','Amount','Note'],
-    colWidths: [120, 110, 220, 180, 120, 200],
+    subTitle: `Recent Transactions — Latest 15 orders`,
+    headers: ['Date','Status','Order','Customer • Address','Amount','Items'],
+    colWidths: [120, 130, 110, 220, 120, 200],
     rows: recentRows,
   })
 

@@ -629,6 +629,41 @@ export function generateSampleOrders() {
 
 export const defaultSampleOrders = generateSampleOrders()
 
+// Extract barangay from a free-form address ("Brgy. Monbon, Irosin - Purok 3" → "Monbon")
+export function barangayFromAddress(address) {
+  const m = String(address || '').match(/brgy\.?\s*([^,\-—]+)/i)
+  const name = (m ? m[1] : '').trim()
+  return name || 'Other'
+}
+
+// Order timestamp as finite millis, or NaN when the order has no usable date.
+// Accepts epoch millis, numeric strings, ISO strings and Dates (checks `date`,
+// then common DB column variants `order_date`, `created_at`, `updated_at`).
+export function getOrderTime(o) {
+  const candidates = [o?.date, o?.order_date, o?.created_at, o?.updated_at]
+  for (const v of candidates) {
+    if (v == null || v === '') continue
+    if (v instanceof Date) { if (Number.isFinite(v.getTime())) return v.getTime(); continue }
+    if (typeof v === 'number') { if (Number.isFinite(v)) return v; continue }
+    const s = String(v).trim()
+    if (/^\d+$/.test(s)) { const n = Number(s); if (Number.isFinite(n)) return n; continue } // epoch-as-string
+    const t = Date.parse(s)
+    if (Number.isFinite(t)) return t
+  }
+  return NaN
+}
+
+// Display amount that never returns NaN: display total first, then subtotal, then 0.
+// Covers rows whose `total` column is missing but `subtotal` (or item prices) has value.
+export function getOrderAmount(o) {
+  if (!o) return 0
+  const t = getOrderDisplayTotal(o)
+  if (Number.isFinite(t) && t > 0) return t
+  const s = Number(o.subtotal)
+  if (Number.isFinite(s) && s > 0) return s
+  return Number.isFinite(t) ? t : 0
+}
+
 // Check if required customer details are filled in
 export function isCheckoutValid({ name, phone, address }) {
   return Boolean(name?.trim() && phone?.trim() && address?.trim())
