@@ -403,7 +403,7 @@ export function exportOrdersExcel(orders) {
   const headers = ['Order Number', 'Date & Time', 'Customer', 'Phone', 'Address', 'Items', 'Quantity', 'Borrowed', 'Subtotal', 'Delivery Fee', 'Total', 'Payment', 'Payment Status', 'Schedule', 'Status', 'Canceled', 'Notes']
   const rows = [...orders].sort((a, b) => b.date - a.date).map(o => {
     // database-driven status (no timers) + borrowed + payment audit — borrowed UNPAID uses container price
-    const status = o.status || (o.isCanceled || o.is_canceled ? 'CANCELED' : 'PENDING')
+    const status = o.status || (o.isCanceled || o.is_canceled ? 'CANCELED' : 'CONFIRMED')
     const paymentStatus = o.payment_status || o.paymentStatus || (o.isPaid || o.is_paid ? 'PAID' : 'UNPAID')
     const borrowed = o.borrowedCount ?? o.borrowed_count ?? o.items.filter(it => it.is_borrow || it.product?.bottleSituation === 'BORROW').reduce((s,it)=>s+(it.quantity||0),0)
     const displaySubtotal = o.items.reduce((s,it) => s + getEffectivePrice(it.product || productById[it.productId], paymentStatus) * (it.quantity||0), 0)

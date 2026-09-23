@@ -62,16 +62,16 @@ export default function App() {
     } catch {}
     return defaultSampleOrders
   })
-  // sound for PENDING new orders — live realtime
+  // sound for CONFIRMED new orders — live realtime
   const recentOrderIds = useRef(new Set())
   const ordersRef = useRef(orders)
-  const chimedPendingRef = useRef(new Set())
-  const prevPendingIdsRef = useRef(new Set())
+  const chimedNewRef = useRef(new Set())
+  const prevConfirmedIdsRef = useRef(new Set())
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled())
   useEffect(() => { ordersRef.current = orders }, [orders])
-  const maybeChimeForPending = (ids) => {
-    const fresh = (ids || []).filter(id => !chimedPendingRef.current.has(id))
-    ids.forEach(id => chimedPendingRef.current.add(id))
+  const maybeChimeForNew = (ids) => {
+    const fresh = (ids || []).filter(id => !chimedNewRef.current.has(id))
+    ids.forEach(id => chimedNewRef.current.add(id))
     const toPlay = fresh.filter(id => !recentOrderIds.current.has(id))
     if (toPlay.length) { try { playNewOrderSound() } catch {} return true }
     return false
@@ -152,20 +152,20 @@ export default function App() {
         if (payload.eventType === 'DELETE') setInventory(prev => prev.filter(p => p.id !== payload.old.id))
       }))
       unsubs.push(DB.subscribeTable('orders', payload => {
-        const isPendingInsert = payload?.eventType === 'INSERT' && String(payload.new?.status).toUpperCase() === 'PENDING'
-        const isPendingUpdate = payload?.eventType === 'UPDATE' && String(payload.new?.status).toUpperCase() === 'PENDING' && String(payload.old?.status).toUpperCase() !== 'PENDING'
-        if ((isPendingInsert || isPendingUpdate) && hasSynced.current) {
+        const isNewInsert = payload?.eventType === 'INSERT' && String(payload.new?.status).toUpperCase() === 'CONFIRMED'
+        const isNewUpdate = payload?.eventType === 'UPDATE' && String(payload.new?.status).toUpperCase() === 'CONFIRMED' && String(payload.old?.status).toUpperCase() !== 'CONFIRMED'
+        if ((isNewInsert || isNewUpdate) && hasSynced.current) {
           const nid = payload.new?.order_id
-          if (nid && maybeChimeForPending([nid])) showToast(`🔔 New order ${nid} — ${payload.new?.customer_name || ''} • PENDING`)
+          if (nid && maybeChimeForNew([nid])) showToast(`🔔 New order ${nid} — ${payload.new?.customer_name || ''} • CONFIRMED`)
         }
         DB.fetchOrders().then(rows => {
           if (rows?.length) {
             if (hasSynced.current) {
               const prevIds = new Set((ordersRef.current || []).map(o => o.orderId))
               const newOnes = rows.filter(r => !prevIds.has(r.orderId))
-              const newPending = newOnes.filter(o => getOrderStatus(o).id === 'PENDING').map(o=>o.orderId)
-              if (newPending.length && maybeChimeForPending(newPending)) {
-                newPending.forEach(id => { const o = rows.find(r=>r.orderId===id); showToast(`🔔 New order ${id} — ${o?.customerName || ''} • PENDING`) })
+              const newConfirmed = newOnes.filter(o => getOrderStatus(o).id === 'CONFIRMED').map(o=>o.orderId)
+              if (newConfirmed.length && maybeChimeForNew(newConfirmed)) {
+                newConfirmed.forEach(id => { const o = rows.find(r=>r.orderId===id); showToast(`🔔 New order ${id} — ${o?.customerName || ''} • CONFIRMED`) })
               }
             }
             setOrders(rows)
@@ -287,19 +287,19 @@ export default function App() {
   useEffect(() => {
     if (syncing) console.log('[Supabase] Syncing…')
   }, [syncing])
-  // watch PENDING count as extra safety (if realtime missed)
+  // watch CONFIRMED count as extra safety (if realtime missed)
   useEffect(() => {
-    const curIds = new Set(orders.filter(o => getOrderStatus(o).id === 'PENDING').map(o => o.orderId))
-    if (!hasSynced.current) { prevPendingIdsRef.current = curIds; curIds.forEach(id=>chimedPendingRef.current.add(id)); return }
-    const newPending = [...curIds].filter(id => !prevPendingIdsRef.current.has(id))
-    if (newPending.length && maybeChimeForPending(newPending)) showToast(`🔔 ${newPending.length} new pending — ${newPending.join(', ')}`)
-    prevPendingIdsRef.current = curIds
+    const curIds = new Set(orders.filter(o => getOrderStatus(o).id === 'CONFIRMED').map(o => o.orderId))
+    if (!hasSynced.current) { prevConfirmedIdsRef.current = curIds; curIds.forEach(id=>chimedNewRef.current.add(id)); return }
+    const newConfirmed = [...curIds].filter(id => !prevConfirmedIdsRef.current.has(id))
+    if (newConfirmed.length && maybeChimeForNew(newConfirmed)) showToast(`🔔 ${newConfirmed.length} new confirmed — ${newConfirmed.join(', ')}`)
+    prevConfirmedIdsRef.current = curIds
   }, [orders])
 
   // ---- Notification bubbles: counts of items needing attention per tab ----
   // Only rendered when count > 0 (Sidebar hides zero badges)
   const navBadges = useMemo(() => ({
-    orders: orders.filter(o => getOrderStatus(o).id === 'PENDING').length,
+    orders: orders.filter(o => getOrderStatus(o).id === 'CONFIRMED').length,
     messages: messages.filter(m => !m.is_read && !m.is_deleted && !m.is_blocked).length,
     inventory: inventory.filter(it => (it.stockFilled ?? it.stock_filled ?? 0) <= (it.threshold ?? 0) && !(it.is_archived ?? it.isArchived)).length,
     borrowed: orders.filter(o => (o.borrowedCount ?? o.borrowed_count ?? 0) > 0).length,
@@ -502,9 +502,9 @@ export default function App() {
   const handleOrderCreate = async (newOrder) => {
     let id = newOrder.orderId
     while (orders.some(o => o.orderId === id)) id = `WFR-${Math.floor(1000 + Math.random() * 9000)}`
-    const order = { ...newOrder, orderId: id, status: newOrder.status || 'PENDING', payment_status: newOrder.payment_status || 'UNPAID' }
-    if (String(order.status).toUpperCase() === 'PENDING') {
-      recentOrderIds.current.add(id); chimedPendingRef.current.add(id)
+    const order = { ...newOrder, orderId: id, status: newOrder.status || 'CONFIRMED', payment_status: newOrder.payment_status || 'UNPAID' }
+    if (String(order.status).toUpperCase() === 'CONFIRMED') {
+      recentOrderIds.current.add(id); chimedNewRef.current.add(id)
       setTimeout(()=>recentOrderIds.current.delete(id),15000)
       try { playNewOrderSound() } catch {}
     }

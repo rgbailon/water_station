@@ -38,19 +38,18 @@ export default function DeliveryPrintSheet({ orders = [], onClose, singleOrder =
           <div className="print-brand">
             <div className="print-logo">💧</div>
             <div>
-              <h1>GALLON DELIVERY GUIDE</h1>
-              <p>Water Refilling Station • Irosin, Sorsogon • Delivery Rider Copy</p>
+              <h1>TUBIG IROSIN</h1>
+              <p>Water Refilling Station • Irosin, Sorsogon</p>
               <p style={{ fontSize: '7pt', marginTop: '4px', color: '#0c2d4a', letterSpacing: 0 }}>
-                {isSingle ? `Order ${singleOrder.orderId} — Out for Delivery` : `Ready for delivery`}
+                Gallon Delivery Guide — Rider Copy • {isSingle ? `Order ${singleOrder.orderId}` : 'Ready for delivery'}
               </p>
             </div>
           </div>
           <div className="print-date-box">
-            <div className="label">Date & Time</div>
+            <div className="label">Date</div>
             <div className="date">{dateStr}</div>
             <div className="sub">Printed: {nowPHString()}</div>
-            <div style={{ marginTop: '6px', fontSize: '7pt', fontWeight: 700, color: '#0c2d4a' }}>Rider: ______________________</div>
-            <div style={{ marginTop: '4px', fontSize: '7pt', fontWeight: 700, color: '#0c2d4a' }}>Tricycle No.: _____</div>
+            <div style={{ marginTop: '6px', fontSize: '7pt', fontWeight: 700, color: '#0c2d4a' }}>Rider: __________ • Tricycle: _____</div>
           </div>
         </div>
 
@@ -199,14 +198,14 @@ export default function DeliveryPrintSheet({ orders = [], onClose, singleOrder =
 
         <div className="print-actions">
           <button className="btn-cancel" onClick={onClose}>Close</button>
-          <button className="btn-save" onClick={() => window.print()}>🖨 Print this guide</button>
+          <button className="btn-save" onClick={() => window.print()}>🖨 Print This Guide</button>
         </div>
       </div>
     </div>
   )
 
   return (
-    <div className="print-preview-overlay" onClick={onClose}>
+    <div className="print-preview-overlay guide-overlay" onClick={onClose}>
       <div className="print-preview-modal" onClick={e => e.stopPropagation()}>
         {content}
       </div>

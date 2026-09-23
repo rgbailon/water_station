@@ -1,4 +1,4 @@
-// Tubig Irosin — order notification sound (PENDING)
+// Tubig Irosin — order notification sound (new CONFIRMED orders)
 let audioCtx = null
 function getCtx() {
   if (audioCtx) return audioCtx

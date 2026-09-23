@@ -205,7 +205,7 @@ export function orderFromRow(r, items = []) {
     is_refunded: !!it.is_refunded,
     is_borrow: !!it.is_borrow,
   }))
-  const status = r.status || (r.is_canceled ? 'CANCELED' : r.is_delivered ? 'DELIVERED' : 'PENDING')
+  const status = r.status || (r.is_canceled ? 'CANCELED' : r.is_delivered ? 'DELIVERED' : 'CONFIRMED')
   const borrowed_count = r.borrowed_count != null ? Number(r.borrowed_count) : expanded.filter(it => it.is_borrow).reduce((s,it)=> s+it.quantity,0)
   const is_borrowed = r.is_borrowed != null ? !!r.is_borrowed : borrowed_count > 0
   const payment_status = r.payment_status || (r.is_paid ? 'PAID' : 'UNPAID')
@@ -239,7 +239,7 @@ export function orderFromRow(r, items = []) {
   }
 }
 export function orderToRow(o) {
-  const status = o.status || (o.isCanceled || o.is_canceled ? 'CANCELED' : o.is_delivered ? 'DELIVERED' : 'PENDING')
+  const status = o.status || (o.isCanceled || o.is_canceled ? 'CANCELED' : o.is_delivered ? 'DELIVERED' : 'CONFIRMED')
   // compute borrowed from items if not explicitly provided (audit)
   const borrowedFromItems = Array.isArray(o.items) ? o.items.reduce((s,it)=> s + (it.is_borrow || it.product?.bottleSituation === 'BORROW' ? (it.quantity||0) : 0), 0) : 0
   const borrowed_count = o.borrowedCount ?? o.borrowed_count ?? borrowedFromItems

@@ -36,7 +36,7 @@ const STATUS_META = {
 }
 
 function StatusPill({ statusId }) {
-  const m = STATUS_META[statusId] || STATUS_META.PENDING
+  const m = STATUS_META[statusId] || STATUS_META.CONFIRMED
   return <span className="pill" style={{ background: m.bg, color: m.color, borderColor: m.border }}>{m.label}</span>
 }
 function PaymentPill({ statusId }) {
@@ -57,8 +57,8 @@ function Timeline({ order }) {
   }
   const noPickup = !needsPickup(order)
   const steps = noPickup
-    ? ['PENDING', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED']
-    : ['PENDING', 'CONFIRMED', 'TO_PICK_UP', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED']
+    ? ['CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED']
+    : ['CONFIRMED', 'TO_PICK_UP', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED']
   // Legacy ids are already normalized by getOrderStatus (GALLON_TO_GET → TO_PICK_UP, GALLON_RECEIVED → PREPARING)
   const current = currentRaw
   const idx = steps.indexOf(current)
@@ -120,10 +120,13 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus, onUpdatePa
                 {getValidStatuses(order).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
               <span style={{ fontSize: 11, color: 'var(--slate-500)' }}>Changes are saved to Supabase immediately.</span>
-              {status.id === 'PENDING' && (
-                <button className="btn-xs primary" style={{ padding: '6px 12px', background: '#1a7bb8', borderColor: '#1a7bb8', color: 'white' }} title="Confirm order" onClick={() => { onUpdateStatus(order.orderId, 'CONFIRMED'); onClose() }}>✓ Confirm Order</button>
+              {needsPickup(order) && status.id === 'CONFIRMED' && (
+                <button className="btn-xs primary" style={{ padding: '6px 12px', background: '#ea580c', borderColor: '#ea580c', color: 'white' }} title="Queue for gallon pick-up" onClick={() => { onUpdateStatus(order.orderId, 'TO_PICK_UP'); onClose() }}>🛻 Pick Up → To Pick Up</button>
               )}
-              {needsPickup(order) && (status.id === 'CONFIRMED' || status.id === 'TO_PICK_UP') && (
+              {!needsPickup(order) && status.id === 'CONFIRMED' && (
+                <button className="btn-xs primary" style={{ padding: '6px 12px', background: '#7c3aed', borderColor: '#7c3aed', color: 'white' }} title="New / Borrow skips pick-up — start preparing" onClick={() => { onUpdateStatus(order.orderId, 'PREPARING'); onClose() }}>⚙ Start Preparing</button>
+              )}
+              {needsPickup(order) && status.id === 'TO_PICK_UP' && (
                 <button className="btn-xs primary" style={{ padding: '6px 12px', background: '#7c3aed', borderColor: '#7c3aed', color: 'white' }} title="Empties collected — move to Preparing" onClick={() => { onUpdateStatus(order.orderId, 'PREPARING'); onClose() }}>🛻 Picked Up → Preparing</button>
               )}
               {status.id === 'PREPARING' && (
@@ -237,7 +240,7 @@ function OrderDetailModal({ order, onClose, onCancel, onUpdateStatus, onUpdatePa
           {canCancel ? (
             <button className="btn-xs danger" style={{ marginRight: 'auto', padding: '8px 14px' }} onClick={() => { onCancel(order.orderId); onClose() }}>Cancel order</button>
           ) : (
-            <span style={{ marginRight: 'auto', fontSize: 12, color: 'var(--slate-500)' }}>{order.isCanceled ? 'This order is already canceled' : status.id === 'DELIVERED' ? 'Delivered — can no longer be canceled' : 'Cancel available while Pending / Confirmed / To Pick Up / Preparing'}</span>
+            <span style={{ marginRight: 'auto', fontSize: 12, color: 'var(--slate-500)' }}>{order.isCanceled ? 'This order is already canceled' : status.id === 'DELIVERED' ? 'Delivered — can no longer be canceled' : 'Cancel available while Confirmed / To Pick Up / Preparing'}</span>
           )}
           <button className="btn-cancel" onClick={onClose}>Close</button>
         </div>
@@ -300,7 +303,7 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
     const order = {
       orderId,
       date: Date.now(),
-      status: 'PENDING',
+      status: 'CONFIRMED',
       customerName: name.trim(),
       phone: phone.trim(),
       address: address.trim(),
@@ -326,7 +329,7 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
         <div className="modal-head">
           <div>
             <h3>New order</h3>
-            <p>Choose products and enter customer details — status will be PENDING in database</p>
+            <p>Choose products and enter customer details — status will be CONFIRMED in database</p>
           </div>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
@@ -497,7 +500,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
       const s = getOrderStatus(o).id
       byStatus[s] = (byStatus[s] || 0) + 1
     })
-    const active = (byStatus.PENDING || 0) + (byStatus.CONFIRMED || 0) + (byStatus.TO_PICK_UP || 0) + (byStatus.PREPARING || 0) + (byStatus.OUT_FOR_DELIVERY || 0)
+    const active = (byStatus.CONFIRMED || 0) + (byStatus.TO_PICK_UP || 0) + (byStatus.PREPARING || 0) + (byStatus.OUT_FOR_DELIVERY || 0)
     const delivered = byStatus.DELIVERED || 0
     const revenue = orders.filter(o => getOrderStatus(o).id !== 'CANCELED').reduce((s, o) => s + getOrderDisplayTotal(o), 0)
     const avg = total - canceled > 0 ? revenue / (total - canceled) : 0
@@ -558,7 +561,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
     while (orders.some(o => o.orderId === id)) {
       id = `WFR-${Math.floor(1000 + Math.random() * 9000)}`
     }
-    const order = { ...newOrder, orderId: id, status: newOrder.status || 'PENDING' }
+    const order = { ...newOrder, orderId: id, status: newOrder.status || 'CONFIRMED' }
     onUpdateOrders(prev => [order, ...prev])
     setShowNew(false)
     showToast && showToast(`Order ${id} placed — total ${peso(order.total)}`)
@@ -566,10 +569,11 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
 
   const pickUpList = useMemo(() => orders.filter(o => {
     if (!needsPickup(o)) return false
-    // Gallons to pick up: To Pick Up queue + Confirmed orders needing pick-up.
+    // Gallons to pick up: only the To Pick Up queue.
+    // Confirmed orders must first be moved to To Pick Up via the Pick Up button.
     // Preparing and later are already collected — never in the Pick-Up guide.
     const s = normalizeStatusId(getOrderStatus(o).id)
-    return s === OrderStatus.TO_PICK_UP.id || s === OrderStatus.CONFIRMED.id
+    return s === OrderStatus.TO_PICK_UP.id
   }), [orders])
   const deliveryList = useMemo(() => orders.filter(o => getOrderStatus(o).id === OrderStatus.OUT_FOR_DELIVERY.id), [orders])
 
@@ -582,18 +586,20 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button
-            className="btn-xs"
-            style={{ padding: '9px 14px', fontSize: 13, background: pickUpList.length ? '#fef3c7' : 'var(--white)', borderColor: pickUpList.length ? '#fde68a' : 'var(--slate-200)', color: pickUpList.length ? '#92400e' : 'var(--slate-400)' }}
+            className="btn btn-ghost"
+            style={pickUpList.length ? { background: '#fef3c7', borderColor: '#fde68a', color: '#92400e' } : undefined}
             onClick={() => pickUpList.length && setPickUpPrint({ mode: 'all' })}
             disabled={pickUpList.length === 0}
+            title={pickUpList.length ? `${pickUpList.length} order(s) ready for pick-up` : 'No orders for pick-up'}
           >
             🛻 Pick-Up {pickUpList.length ? `(${pickUpList.length})` : ''}
           </button>
           <button
-            className="btn-xs"
-            style={{ padding: '9px 14px', fontSize: 13, background: deliveryList.length ? '#dcfce7' : 'var(--white)', borderColor: deliveryList.length ? '#a7f3d0' : 'var(--slate-200)', color: deliveryList.length ? '#065f46' : 'var(--slate-400)' }}
+            className="btn btn-ghost"
+            style={deliveryList.length ? { background: '#dcfce7', borderColor: '#a7f3d0', color: '#065f46' } : undefined}
             onClick={() => deliveryList.length && setDeliveryPrint({ mode: 'all' })}
             disabled={deliveryList.length === 0}
+            title={deliveryList.length ? `${deliveryList.length} order(s) ready for delivery` : 'No orders for delivery'}
           >
             🚚 Delivery {deliveryList.length ? `(${deliveryList.length})` : ''}
           </button>
@@ -613,7 +619,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
         </div>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
           <option value="ALL">All statuses</option>
-          {Object.values(OrderStatus).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          {Object.values(OrderStatus).filter(s => s.id !== 'PENDING').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
         <select value={scheduleFilter} onChange={e => setScheduleFilter(e.target.value)} style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--slate-200)', fontSize: 12, fontWeight: 700, background: 'var(--white)', color: 'var(--slate-700)' }}>
           <option value="ALL">All schedules</option>
@@ -640,15 +646,19 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
       </div>
 
       <div style={{ display: 'flex', gap: 6, padding: '10px 18px', flexWrap: 'wrap' }}>
-        {['ALL', ...Object.keys(OrderStatus)].map(id => {
+        {['ALL', ...Object.keys(OrderStatus).filter(id => id !== 'PENDING')].map(id => {
           const isAll = id === 'ALL'
           const active = statusFilter === id
           const label = isAll ? 'All' : STATUS_META[id]?.label || id
           const count = isAll ? orders.length : orders.filter(o => getOrderStatus(o).id === id).length
+          const meta = isAll ? null : STATUS_META[id]
+          const hasItems = count > 0 && meta
           return (
-            <button key={id} onClick={() => setStatusFilter(id)} style={{
-              padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: `1px solid ${active ? 'var(--slate-900)' : 'var(--slate-200)'}`,
-              background: active ? 'var(--slate-900)' : 'var(--white)', color: active ? 'var(--white)' : 'var(--slate-700)', cursor: 'pointer'
+            <button key={id} onClick={() => setStatusFilter(id)} title={hasItems ? `${count} order(s) in ${label}` : `No orders in ${label}`} style={{
+              padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              border: `1px solid ${active ? 'var(--slate-900)' : hasItems ? meta.border : 'var(--slate-200)'}`,
+              background: active ? 'var(--slate-900)' : hasItems ? meta.bg : 'var(--white)',
+              color: active ? 'var(--white)' : hasItems ? meta.color : 'var(--slate-400)', cursor: 'pointer'
             }}>
               {label} <span style={{ opacity: 0.7, fontWeight: 600 }}>({count})</span>
             </button>
@@ -691,7 +701,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
           <div className="stat-card green">
             <div className="stat-top"><span className="stat-label">Delivered</span><span className="stat-icon">✅</span></div>
             <div className="stat-value">{stats.delivered}</div>
-            <div className="stat-trend trend-up">{stats.active} still pending</div>
+            <div className="stat-trend trend-up">{stats.active} still in progress</div>
           </div>
           <div className="stat-card amber">
             <div className="stat-top"><span className="stat-label">Total sales</span><span className="stat-icon">💧</span></div>
@@ -735,8 +745,6 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
               <div style={{ display: 'grid', gap: 6 }}>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
                   <span style={{ fontSize: 11, color: 'var(--slate-500)', fontWeight: 800 }}>WITH Gallon:</span>
-                  <span className="pill" style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}>Pending</span>
-                  <span>→</span>
                   <span className="pill" style={{ background: '#e0f2fe', color: '#0c4a6e', borderColor: '#bae6fd' }}>Confirmed</span>
                   <span>→</span>
                   <span className="pill" style={{ background: '#ffedd5', color: '#9a3412', borderColor: '#fdba74' }}>To Pick Up</span>
@@ -749,8 +757,6 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
                   <span style={{ fontSize: 11, color: '#92400e', fontWeight: 800 }}>NEW / BORROW:</span>
-                  <span className="pill" style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}>Pending</span>
-                  <span>→</span>
                   <span className="pill" style={{ background: '#e0f2fe', color: '#0c4a6e', borderColor: '#bae6fd' }}>Confirmed</span>
                   <span>→</span>
                   <span className="pill" style={{ background: '#ede9fe', color: '#5b21b6', borderColor: '#c4b5fd' }}>Preparing</span>
@@ -762,7 +768,7 @@ export default function OrdersView({ orders, onUpdateOrders, onCancelOrder, onCr
                 </div>
               </div>
               <div style={{ fontSize: 12, color: 'var(--slate-500)', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '8px 10px' }}>
-                Cancel is only allowed while status is Pending / Confirmed / To Pick Up / Preparing. Delivered orders cannot be canceled. Pick-Up guide lists only To Pick Up gallons (plus legacy Confirmed needing pick-up) — use 🛻 Picked Up (table, detail view, or guide) to move collected orders to Preparing.
+                Cancel is only allowed while status is Confirmed / To Pick Up / Preparing. Delivered orders cannot be canceled. Pick-Up guide lists only To Pick Up gallons — use 🛻 Pick Up on Confirmed orders to queue them, then 🛻 Picked Up (table, detail view, or guide) to move collected orders to Preparing.
               </div>
             </div>
           </div>

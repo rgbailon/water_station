@@ -11,7 +11,7 @@ const nav = [
 ]
 
 const badgeHints = {
-  orders: 'pending orders',
+  orders: 'confirmed orders',
   messages: 'unread messages',
   inventory: 'low-stock items',
   borrowed: 'borrowed orders',

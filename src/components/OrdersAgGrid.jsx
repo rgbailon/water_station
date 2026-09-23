@@ -32,7 +32,7 @@ const STATUS_META = {
 }
 
 function StatusPill({ statusId }) {
-  const m = STATUS_META[statusId] || STATUS_META.PENDING
+  const m = STATUS_META[statusId] || STATUS_META.CONFIRMED
   return <span className="pill" style={{ background: m.bg, color: m.color, borderColor: m.border }}>{m.label}</span>
 }
 
@@ -229,8 +229,9 @@ function ActionCell(props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '2px 0' }} onClick={stop} onMouseDown={stop}>
       <button className="btn-xs" style={{ padding: '6px 10px', width: '100%' }} onClick={(e) => { e.stopPropagation(); ctx.onView?.(order) }} onMouseDown={stop}>View</button>
-      {st.id === 'PENDING' && btn('✓ Confirm', 'Confirm order', '#1a7bb8', () => ctx.onStatusChange?.(order.orderId, 'CONFIRMED'))}
-      {needsPickup(order) && (st.id === 'CONFIRMED' || st.id === 'TO_PICK_UP') && btn('🛻 Picked Up', 'Empties collected — move to Preparing', '#7c3aed', () => ctx.onStatusChange?.(order.orderId, 'PREPARING'))}
+      {needsPickup(order) && st.id === 'CONFIRMED' && btn('🛻 Pick Up', 'Queue for gallon pick-up — move to To Pick Up', '#ea580c', () => ctx.onStatusChange?.(order.orderId, 'TO_PICK_UP'))}
+      {!needsPickup(order) && st.id === 'CONFIRMED' && btn('⚙ Preparing', 'New / Borrow skips pick-up — start preparing', '#7c3aed', () => ctx.onStatusChange?.(order.orderId, 'PREPARING'))}
+      {needsPickup(order) && st.id === 'TO_PICK_UP' && btn('🛻 Picked Up', 'Empties collected — move to Preparing', '#7c3aed', () => ctx.onStatusChange?.(order.orderId, 'PREPARING'))}
       {st.id === 'PREPARING' && btn('🚚 Out for Delivery', 'Ready — move to Out for Delivery (delivery list)', '#059669', () => ctx.onStatusChange?.(order.orderId, 'OUT_FOR_DELIVERY'))}
       {st.id === 'OUT_FOR_DELIVERY' && btn('✓ Delivered', 'Delivered to customer', '#334155', () => ctx.onStatusChange?.(order.orderId, 'DELIVERED'))}
       {canCancel && (

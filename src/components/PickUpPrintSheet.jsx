@@ -38,21 +38,20 @@ export default function PickUpPrintSheet({ orders = [], onClose, singleOrder = n
       <div className="print-sheet-inner">
         <div className="print-header">
           <div className="print-brand">
-            <div className="print-logo">🛻</div>
+            <div className="print-logo">💧</div>
             <div>
-              <h1>GALLON PICK-UP GUIDE</h1>
-              <p>Water Refilling Station • Irosin, Sorsogon • Delivery Rider Copy</p>
+              <h1>TUBIG IROSIN</h1>
+              <p>Water Refilling Station • Irosin, Sorsogon</p>
               <p style={{ fontSize: '7pt', marginTop: '4px', color: '#0c2d4a', letterSpacing: 0 }}>
-                {isSingle ? `Order ${singleOrder.orderId} — Confirmed` : `Ready for pick-up`}
+                Gallon Pick-Up Guide — Rider Copy • {isSingle ? `Order ${singleOrder.orderId}` : 'Ready for pick-up'}
               </p>
             </div>
           </div>
           <div className="print-date-box">
-            <div className="label">Date & Time</div>
+            <div className="label">Date</div>
             <div className="date">{dateStr}</div>
             <div className="sub">Printed: {nowPHString()}</div>
-            <div style={{ marginTop: '6px', fontSize: '7pt', fontWeight: 700, color: '#0c2d4a' }}>Rider: ______________________</div>
-            <div style={{ marginTop: '4px', fontSize: '7pt', fontWeight: 700, color: '#0c2d4a' }}>Tricycle No.: _____</div>
+            <div style={{ marginTop: '6px', fontSize: '7pt', fontWeight: 700, color: '#0c2d4a' }}>Rider: __________ • Tricycle: _____</div>
           </div>
         </div>
 
@@ -188,7 +187,7 @@ export default function PickUpPrintSheet({ orders = [], onClose, singleOrder = n
           {onMarkPickedUp && list.length > 0 && (
             <button className="btn-save" style={{ background: '#7c3aed', borderColor: '#7c3aed' }} onClick={handleMarkAllPickedUp}>🛻 {isSingle ? 'Picked Up → Preparing' : `All Picked Up → Preparing (${list.length})`}</button>
           )}
-          <button className="btn-save" onClick={() => window.print()}>🖨 Print this guide</button>
+          <button className="btn-save" onClick={() => window.print()}>🖨 Print This Guide</button>
         </div>
       </div>
     </div>
@@ -199,7 +198,7 @@ export default function PickUpPrintSheet({ orders = [], onClose, singleOrder = n
   }
 
   return (
-    <div className="print-preview-overlay" onClick={onClose}>
+    <div className="print-preview-overlay guide-overlay" onClick={onClose}>
       <div className="print-preview-modal" onClick={e => e.stopPropagation()}>
         {content}
       </div>

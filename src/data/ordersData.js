@@ -25,6 +25,7 @@ export const OrderStatus = {
 }
 
 // Legacy status ids (removed from the flow, still mapped for old DB rows / localStorage):
+// - `PENDING` (old initial stage) → CONFIRMED (every order starts confirmed)
 // - `GALLON_TO_GET` (old "Gallon Pick Up" queue) → TO_PICK_UP
 // - `GALLON_RECEIVED` (old "Gallon Received") → PREPARING (already collected → being prepared)
 export const LEGACY_GALLON_TO_GET = 'GALLON_TO_GET'
@@ -36,8 +37,9 @@ export const PaymentStatus = {
 }
 
 // New gallon / Borrowed orders skip To Pick Up — Confirmed → Preparing → Out for Delivery → Delivered.
-// WITH-gallon orders: Pending → Confirmed → To Pick Up → Preparing → Out for Delivery → Delivered.
+// WITH-gallon orders: Confirmed → To Pick Up → Preparing → Out for Delivery → Delivered.
 // Only To Pick Up orders (gallons to pick up) appear in the Pick-Up guide.
+// PENDING is legacy (old DB rows / localStorage) and is treated as CONFIRMED everywhere.
 export function isNewOrBorrowOrder(order) {
   const items = order?.items || []
   if (!items.length) return false
@@ -50,8 +52,8 @@ export function needsPickup(order) {
   return !isNewOrBorrowOrder(order)
 }
 export function getValidStatuses(order) {
-  if (needsPickup(order)) return [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.TO_PICK_UP, OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.CANCELED]
-  return [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.CANCELED]
+  if (needsPickup(order)) return [OrderStatus.CONFIRMED, OrderStatus.TO_PICK_UP, OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.CANCELED]
+  return [OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.CANCELED]
 }
 export function isValidStatusForOrder(order, statusId) {
   return getValidStatuses(order).some(s => s.id === statusId)
@@ -390,15 +392,16 @@ export function calcBorrowedContainerSubtotal(items, paymentStatus = 'PAID') {
 }
 
 // 4. Order status — now database-driven (no timers)
-// `order.status` is the source of truth (e.g. PENDING, CONFIRMED, TO_PICK_UP, PREPARING, OUT_FOR_DELIVERY, DELIVERED, CANCELED).
-// Removed `GALLON_TO_GET` / `GALLON_RECEIVED` are mapped forward for backward compat
-// (pickup queue → TO_PICK_UP, collected → PREPARING).
+// `order.status` is the source of truth (e.g. CONFIRMED, TO_PICK_UP, PREPARING, OUT_FOR_DELIVERY, DELIVERED, CANCELED).
+// Removed `PENDING` / `GALLON_TO_GET` / `GALLON_RECEIVED` are mapped forward for backward compat
+// (pending → CONFIRMED, pickup queue → TO_PICK_UP, collected → PREPARING).
 export function getOrderStatus(order) {
-  if (!order) return OrderStatus.PENDING
+  if (!order) return OrderStatus.CONFIRMED
   if (order.isCanceled || order.is_canceled) return OrderStatus.CANCELED
   const raw = order.status || order.order_status
   if (raw) {
     const key = String(raw).toUpperCase()
+    if (key === 'PENDING') return OrderStatus.CONFIRMED
     if (key === LEGACY_GALLON_TO_GET) return needsPickup(order) ? OrderStatus.TO_PICK_UP : OrderStatus.PREPARING
     if (key === LEGACY_GALLON_RECEIVED) return OrderStatus.PREPARING
     // New/Borrow orders never sit in the pickup queue — coerce to Preparing for display
@@ -408,11 +411,12 @@ export function getOrderStatus(order) {
     const byId = Object.values(OrderStatus).find(v => v.id === key)
     if (byId) return byId
   }
-  return OrderStatus.PENDING
+  return OrderStatus.CONFIRMED
 }
 
 export function normalizeStatusId(statusId) {
   const key = String(statusId || '').toUpperCase()
+  if (key === 'PENDING') return OrderStatus.CONFIRMED.id
   if (key === LEGACY_GALLON_TO_GET) return OrderStatus.TO_PICK_UP.id
   if (key === LEGACY_GALLON_RECEIVED) return OrderStatus.PREPARING.id
   return statusId
@@ -424,6 +428,9 @@ export function normalizeStatusId(statusId) {
 // so requesting TO_PICK_UP for them resolves to PREPARING.
 export function resolveStatusForOrder(order, requestedStatusId) {
   let next = normalizeStatusId(requestedStatusId)
+  if (next === OrderStatus.PENDING.id) {
+    return OrderStatus.CONFIRMED.id
+  }
   if (!needsPickup(order) && next === OrderStatus.TO_PICK_UP.id) {
     return OrderStatus.PREPARING.id
   }
@@ -441,11 +448,12 @@ export function canCancelOrder(order) {
   if (order.isCanceled || order.is_canceled) return false
   const s = getOrderStatus(order).id
   // Only allow cancel while still in preparation phases
-  return s === OrderStatus.PENDING.id || s === OrderStatus.CONFIRMED.id || s === OrderStatus.TO_PICK_UP.id || s === OrderStatus.PREPARING.id
+  return s === OrderStatus.CONFIRMED.id || s === OrderStatus.TO_PICK_UP.id || s === OrderStatus.PREPARING.id
 }
 
 // Helper: list of statuses that allow manual transition (for UI dropdown)
-export const ORDER_STATUS_OPTIONS = Object.values(OrderStatus)
+// PENDING is legacy — hidden from UI, auto-mapped to CONFIRMED.
+export const ORDER_STATUS_OPTIONS = Object.values(OrderStatus).filter(s => s.id !== 'PENDING')
 
 // Payment status — audit: PAID / UNPAID stored in orders.payment_status (syncs with is_paid)
 export function getPaymentStatus(order) {
@@ -494,7 +502,7 @@ export function getOrderDisplaySubtotal(order) {
   return recomputeOrderTotals(order, getPaymentStatus(order).id).subtotal
 }
 
-function mkOrder({ orderId, date, status = 'PENDING', paymentStatus = 'UNPAID', customerName, phone, address, items, payment = 'Cash on Delivery', schedule = 'Today', notes = '', isCanceled = false }) {
+function mkOrder({ orderId, date, status = 'CONFIRMED', paymentStatus = 'UNPAID', customerName, phone, address, items, payment = 'Cash on Delivery', schedule = 'Today', notes = '', isCanceled = false }) {
   const ts = date ?? Date.now()
   const finalStatus = isCanceled ? 'CANCELED' : status
   const finalPayment = paymentStatus
@@ -511,7 +519,7 @@ export function generateSampleOrders() {
     mkOrder({
       orderId: 'WFR-4821',
       date: now - 25 * 60 * 1000,
-      status: 'PENDING',
+      status: 'CONFIRMED',
       paymentStatus: 'UNPAID',
       customerName: 'Juan Dela Cruz',
       phone: '0912-345-6789',
