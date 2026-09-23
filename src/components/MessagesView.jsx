@@ -187,7 +187,8 @@ export default function MessagesView({ messages = [], onReply, onBlock, onDelete
                   <textarea
                     value={replyDraft[m.id] ?? m.reply ?? ''}
                     onChange={e => setReplyDraft(d => ({ ...d, [m.id]: e.target.value }))}
-                    placeholder="Type your reply — will be saved to Supabase and marked as replied..."
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(m.id) } }}
+                    placeholder="Type your reply — Enter to send, Shift+Enter for new line..."
                     rows={3}
                     style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 13, resize: 'vertical' }}
                   />
