@@ -441,6 +441,31 @@ export default function App() {
     } else showToast(`Order ${orderId} canceled`)
   }
 
+  // hard delete used by Borrowed tab (password-gated in HiramView) — removes order + items
+  const handleOrderDelete = async (orderId) => {
+    const target = orders.find(o => o.orderId === orderId)
+    setOrders(prev => {
+      const next = prev.filter(o => o.orderId !== orderId)
+      try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(next)) } catch {}
+      return next
+    })
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try { await DB.deleteOrder(orderId); showToast(`Order ${orderId} deleted • Synced`) }
+      catch (e) {
+        console.warn('[orders] deleteOrder failed', e)
+        if (target) setOrders(prev => {
+          const next = [target, ...prev].sort((a, b) => (b.date || 0) - (a.date || 0))
+          try { localStorage.setItem(ORDER_STORE_SPEC.key, JSON.stringify(next)) } catch {}
+          return next
+        })
+        showToast(`Delete failed • ${e?.message || e}`)
+        throw e
+      }
+      finally { setSyncing(false) }
+    } else showToast(`Order ${orderId} deleted • Saved locally`)
+  }
+
   const handleOrderStatusUpdate = async (orderId, newStatus) => {
     const order = orders.find(o => o.orderId === orderId)
     let finalStatus = normalizeStatusId(newStatus)
@@ -775,7 +800,7 @@ export default function App() {
           {activeTab==='messages' && <MessagesView messages={messages} onReply={handleMessageReply} onBlock={handleMessageBlock} onDelete={handleMessageDelete} onRestore={handleMessageRestore} onMarkRead={handleMessageRead} onHardDelete={(id)=>handleMessageDelete(id,true)} showToast={showToast} />}
           {activeTab==='products' && <ProductsView products={products} onSavePrice={handleProductPriceSave} onAddProduct={handleProductAdd} onUpdateProduct={handleProductUpdate} onDeleteProduct={handleProductDelete} />}
           {activeTab==='inventory' && <InventoryView inventory={inventory} onUpdate={handleInventoryUpdate} dbStatus={dbStatus} />}
-          {activeTab==='borrowed' && <HiramView orders={orders} />}
+          {activeTab==='borrowed' && <HiramView orders={orders} onDeleteOrder={handleOrderDelete} />}
           {activeTab==='customers' && <CustomersView orders={orders} />}
           {activeTab==='expenses' && <ExpensesView expenses={expenses} onUpdateExpenses={setExpenses} onSaveExpense={handleExpenseSave} onDeleteExpense={handleExpenseDelete} />}
           {activeTab==='reports' && <ReportsView events={events} inventory={inventory} />}

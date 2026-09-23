@@ -1,11 +1,47 @@
 import { useState, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { peso } from '../utils/dateUtils'
 import { exportOrdersExcel } from '../utils/export'
 import { getOrderDisplayTotal } from '../data/ordersData'
 
-export default function HiramView({ orders = [] }) {
+// Same gate as Products tab. Set VITE_DELETE_PASSWORD in .env
+// (same value as PGPASSWORD) — frontend can't read bare PGPASSWORD.
+const DELETE_PASSWORD = import.meta.env.VITE_DELETE_PASSWORD || ''
+
+export default function HiramView({ orders = [], onDeleteOrder }) {
   const [search, setSearch] = useState('')
   const [barangayFilter, setBarangayFilter] = useState('ALL')
+
+  // ---- Delete borrowed order (database password gate) ----
+  const [deletingOrder, setDeletingOrder] = useState(null)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  const openDelete = (o) => { setDeletingOrder(o); setDeletePassword(''); setDeleteError(''); setDeleting(false) }
+  const closeDelete = () => { if (!deleting) { setDeletingOrder(null); setDeletePassword(''); setDeleteError('') } }
+  const confirmDelete = async () => {
+    if (!deletingOrder || deleting) return
+    if (!DELETE_PASSWORD) {
+      setDeleteError('Delete password not configured — set VITE_DELETE_PASSWORD in .env (same as database PGPASSWORD) and restart.')
+      return
+    }
+    if (deletePassword !== DELETE_PASSWORD) {
+      setDeleteError('Incorrect database password — order not deleted.')
+      return
+    }
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      if (onDeleteOrder) await onDeleteOrder(deletingOrder.orderId)
+      setDeletingOrder(null)
+      setDeletePassword('')
+    } catch (e) {
+      setDeleteError(`Delete failed: ${e?.message || e}`)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const borrowedOrders = useMemo(() => {
     return (orders || []).filter(o => (o.borrowedCount ?? o.borrowed_count ?? 0) > 0)
@@ -141,6 +177,7 @@ export default function HiramView({ orders = [] }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <button className="btn-xs" onClick={() => alert(`Call ${o.customerName} — ${o.phone || 'no phone'}`)}>📞 Call</button>
                       <button className="btn-xs" onClick={() => { navigator.clipboard.writeText(o.orderId); alert(`Copied ${o.orderId}`) }} title="Copy order ID">⎘ Copy</button>
+                      <button className="btn-xs danger" onClick={() => openDelete(o)} title={`Delete borrowed order ${o.orderId}`}>🗑 Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -152,8 +189,61 @@ export default function HiramView({ orders = [] }) {
 
       <div style={{ margin: '0 18px 18px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 12, padding: '12px 14px', fontSize: '13px', color: '#92400e', display: 'flex', gap: 10 }}>
         <span>⚠️</span>
-        <span><b>Audit:</b> Borrowed is tracked per order in Supabase <code>orders.borrowed_count</code> / <code>is_borrowed</code> (trigger <code>order_items_borrowed_sync</code>). No dummy accounts — only real customers with Borrow items appear here. Use Download to export for audit.</span>
+        <span><b>Audit:</b> Borrowed is tracked per order in Supabase <code>orders.borrowed_count</code> / <code>is_borrowed</code> (trigger <code>order_items_borrowed_sync</code>). No dummy accounts — only real customers with Borrow items appear here. Use Download to export for audit. Delete requires the database password.</span>
       </div>
+
+      {deletingOrder && createPortal((
+        <div className="modal-overlay" onClick={closeDelete}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <div className="modal-head">
+              <div>
+                <h3>🗑 Delete Borrowed Order • {deletingOrder.orderId}</h3>
+                <p>{deletingOrder.customerName} — 🤝 {deletingOrder.borrowedCount ?? deletingOrder.borrowed_count ?? 0} gals • {peso(getOrderDisplayTotal(deletingOrder))}</p>
+              </div>
+              <button className="btn-close" onClick={closeDelete}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#991b1b', lineHeight: 1.5 }}>
+                <b>This cannot be undone.</b> The borrowed order and its items will be permanently removed from Supabase and this device.
+              </div>
+              <div className="field">
+                <label>Database password *</label>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={e => { setDeletePassword(e.target.value); setDeleteError('') }}
+                  onKeyDown={e => { if (e.key === 'Enter') confirmDelete() }}
+                  placeholder="Enter database password to confirm"
+                  autoFocus
+                  autoComplete="off"
+                />
+                <span style={{ fontSize: 11, color: 'var(--slate-500)' }}>Without the database password, deletion is blocked.</span>
+              </div>
+              {deleteError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 12px', fontSize: 12.5, color: '#991b1b' }}>
+                  {deleteError}
+                </div>
+              )}
+              {!DELETE_PASSWORD && !deleteError && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 12px', fontSize: 12.5, color: '#92400e' }}>
+                  Delete password not configured — set <code>VITE_DELETE_PASSWORD</code> in <code>.env</code> (same as database <code>PGPASSWORD</code>) and restart.
+                </div>
+              )}
+            </div>
+            <div className="modal-foot">
+              <button className="btn-cancel" onClick={closeDelete} disabled={deleting}>Cancel</button>
+              <button
+                className="btn-save"
+                onClick={confirmDelete}
+                disabled={deleting || !deletePassword.trim()}
+                style={{ background: '#dc2626', boxShadow: '0 4px 10px rgba(220,38,38,0.3)', opacity: deleting || !deletePassword.trim() ? 0.5 : 1 }}
+              >
+                {deleting ? 'Deleting…' : 'Delete Order'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
     </div>
   )
 }
