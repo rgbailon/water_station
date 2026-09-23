@@ -285,7 +285,17 @@ export async function upsertProducts(products) {
 export async function deleteProduct(id) {
   const sb = requireClient()
   const res = await sb.from('products').delete().eq('id', id)
-  if (res.error) throw res.error
+  if (!res.error) return { softDeleted: false }
+  const code = res.error?.code
+  const msg = `${res.error?.message || ''} ${res.error?.details || ''}`
+  const isFk = code === '23503' || /foreign key/i.test(msg) || /order_items/i.test(msg)
+  if (!isFk) throw res.error
+  // Referenced by order history (order_items → products ON DELETE RESTRICT):
+  // preserve history, deactivate instead so it leaves the active catalog.
+  const off = await sb.from('products').update({ is_active: false, is_available: false }).eq('id', id).select()
+  if (off.error) throw off.error
+  const rows = off.data || []
+  return { softDeleted: true, product: rows.length ? productFromRow(rows[0]) : null }
 }
 
 // ---------- INVENTORY ----------

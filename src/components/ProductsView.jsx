@@ -15,6 +15,7 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
   const [bottleFilter, setBottleFilter] = useState('ALL')
   const [containerFilter, setContainerFilter] = useState('ALL')
   const [viewMode, setViewMode] = useState('grid') // grid | table
+  const [showInactive, setShowInactive] = useState(false)
 
   // ---- Edit product (price included) ----
   const [editingProduct, setEditingProduct] = useState(null)
@@ -154,8 +155,12 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
     setShowAdd(false)
   }
 
+  const inactiveCount = useMemo(() => list.filter(p => (p.is_active ?? p.isActive ?? true) === false).length, [list])
+
   const filtered = useMemo(() => {
     return list.filter(p => {
+      const isActive = p.is_active ?? p.isActive ?? true
+      if (!showInactive && !isActive) return false
       if (typeFilter !== 'ALL' && p.type !== typeFilter) return false
       if (bottleFilter !== 'ALL' && p.bottleSituation !== bottleFilter) return false
       if (containerFilter !== 'ALL' && p.container !== containerFilter) return false
@@ -166,7 +171,7 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
       }
       return true
     })
-  }, [list, search, typeFilter, bottleFilter, containerFilter])
+  }, [list, search, typeFilter, bottleFilter, containerFilter, showInactive])
 
   const stats = useMemo(() => {
     const purified = list.filter(p => p.type === 'PURIFIED').length
@@ -266,8 +271,12 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
           <option value="Slim">Slim</option>
         </select>
         <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{filtered.length} products</span>
-        {(search || typeFilter !== 'ALL' || bottleFilter !== 'ALL' || containerFilter !== 'ALL') && (
-          <button className="btn-xs" onClick={() => { setSearch(''); setTypeFilter('ALL'); setBottleFilter('ALL'); setContainerFilter('ALL') }}>Clear</button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--slate-600)' }}>
+          <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} />
+          Show inactive{inactiveCount > 0 ? ` (${inactiveCount})` : ''}
+        </label>
+        {(search || typeFilter !== 'ALL' || bottleFilter !== 'ALL' || containerFilter !== 'ALL' || showInactive) && (
+          <button className="btn-xs" onClick={() => { setSearch(''); setTypeFilter('ALL'); setBottleFilter('ALL'); setContainerFilter('ALL'); setShowInactive(false) }}>Clear</button>
         )}
       </div>
 
@@ -279,8 +288,9 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, padding: '18px', paddingTop: 12 }}>
           {filtered.map(p => {
             const isAvailable = p.type === 'PURIFIED'
+            const isActive = p.is_active ?? p.isActive ?? true
             return (
-              <div key={p.id} style={{ background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 0, boxShadow: 'var(--shadow-sm)' }}>
+              <div key={p.id} style={{ background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 0, boxShadow: 'var(--shadow-sm)', opacity: isActive ? 1 : 0.75 }}>
                 <div style={{ width: '100%', height: 150, background: 'var(--slate-50)', display: 'grid', placeItems: 'center', padding: 8, borderBottom: '1px solid var(--slate-100)', position: 'relative', overflow: 'hidden' }}>
                   <img src={p.image} alt={`${p.name} ${p.container}`} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none' }} />
                   <span style={{ position: 'absolute', top: 8, left: 8, width: 10, height: 10, borderRadius: 999, background: p.accent, border: '1px solid white', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}></span>
@@ -288,7 +298,7 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
                 </div>
                 <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--slate-900)', lineHeight: 1.2 }}>{p.name}</div>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--slate-900)', lineHeight: 1.2 }}>{p.name} {!isActive && <span className="pill red" style={{ fontSize: 10, marginLeft: 4 }}>Inactive</span>}</div>
                     <div style={{ fontSize: 11, color: 'var(--slate-500)', fontWeight: 600, marginTop: 2 }}>{p.size} • {p.container} • {p.bottleLabel}</div>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--slate-600)', lineHeight: 1.4, minHeight: 34 }}>{p.description}</div>
@@ -327,13 +337,15 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
               </tr>
             </thead>
             <tbody>
-              {filtered.map(p => (
-                <tr key={p.id}>
+              {filtered.map(p => {
+                const isActiveRow = p.is_active ?? p.isActive ?? true
+                return (
+                <tr key={p.id} style={isActiveRow ? undefined : { opacity: 0.7 }}>
                   <td style={{ fontWeight: 700 }}>{p.id}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <img src={p.image} alt={p.container} loading="lazy" style={{ width: 32, height: 32, objectFit: 'contain', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 6, padding: 2 }} onError={e => { e.currentTarget.style.display = 'none' }} />
-                      <span style={{ fontWeight: 700, color: 'var(--slate-900)' }}>{p.name}</span>
+                      <span style={{ fontWeight: 700, color: 'var(--slate-900)' }}>{p.name} {!isActiveRow && <span className="pill red" style={{ fontSize: 10, marginLeft: 4 }}>Inactive</span>}</span>
                     </div>
                   </td>
                   <td>{p.size}</td>
@@ -350,7 +362,8 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -358,7 +371,7 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
 
       <div style={{ margin: '0 18px 18px', background: '#f8fafc', border: '1px solid var(--slate-200)', borderRadius: 12, padding: '12px 14px', fontSize: 12.5, color: 'var(--slate-600)', lineHeight: 1.5, display: 'flex', gap: 10 }}>
         <span>💡</span>
-        <span><b>Tip:</b> Purified water can be ordered right now. Mineral and Alkaline options will be available soon. Click <b>✎ Edit</b> to update any field — price included — it syncs to Supabase. Delete requires the database password.</span>
+        <span><b>Tip:</b> Purified water can be ordered right now. Mineral and Alkaline options will be available soon. Click <b>✎ Edit</b> to update any field — price included — it syncs to Supabase. Delete requires the database password; products used in past orders are deactivated instead so order history is kept.</span>
       </div>
 
       {editingProduct && createPortal((
@@ -482,8 +495,7 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
             </div>
             <div className="modal-body">
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#991b1b', lineHeight: 1.5 }}>
-                <b>This cannot be undone.</b> The product will be removed from Supabase and this device.
-                Products used in past orders may be blocked by the database.
+                <b>Removes from the active catalog.</b> If this product is used in past orders, the database keeps order history — it will be <b>deactivated instead</b> (hidden, orderable off) rather than removed.
               </div>
               <div className="field">
                 <label>Database password *</label>

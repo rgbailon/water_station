@@ -602,22 +602,27 @@ export default function App() {
   const handleProductDelete = async (idOrProduct) => {
     const id = typeof idOrProduct === 'object' ? idOrProduct.id : idOrProduct
     const target = products.find(p => String(p.id) === String(id))
-    setProducts(prev => prev.filter(p => String(p.id) !== String(id)))
     if (isSupabaseConfigured()) {
       setSyncing(true)
       try {
-        await DB.deleteProduct(id)
-        showToast(`Product ${target?.name || id} deleted • Synced to Supabase`)
+        const result = await DB.deleteProduct(id)
+        if (result?.softDeleted) {
+          const deactivated = result.product || (target ? { ...target, is_active: false, isActive: false, is_available: false, isAvailable: false } : null)
+          if (deactivated) setProducts(prev => prev.map(p => String(p.id) === String(id) ? deactivated : p))
+          showToast(`Product used in past orders — deactivated instead (history kept) • Synced`)
+        } else {
+          setProducts(prev => prev.filter(p => String(p.id) !== String(id)))
+          showToast(`Product ${target?.name || id} deleted • Synced to Supabase`)
+        }
       }
       catch (e) {
         console.warn('[products] delete sync failed', e)
-        // restore locally since remote delete failed (e.g. referenced by order_items)
-        if (target) setProducts(prev => [...prev, target].sort((a, b) => Number(a.id) - Number(b.id)))
         showToast(`Delete failed • ${e?.message || e}`)
         throw e
       }
       finally { setSyncing(false) }
     } else {
+      setProducts(prev => prev.filter(p => String(p.id) !== String(id)))
       showToast(`Product ${target?.name || id} deleted • Saved locally`)
     }
   }
