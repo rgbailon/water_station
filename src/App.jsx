@@ -584,6 +584,44 @@ export default function App() {
     }
   }
 
+  const handleProductUpdate = async (updated) => {
+    setProducts(prev => prev.map(p => String(p.id) === String(updated.id) ? updated : p))
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try {
+        await DB.upsertProducts([updated])
+        showToast(`${updated.name} updated • Synced to Supabase`)
+      }
+      catch (e) { console.warn('[products] update sync failed', e); showToast('Product updated • Saved locally (sync failed)') }
+      finally { setSyncing(false) }
+    } else {
+      showToast(`${updated.name} updated • Saved locally`)
+    }
+  }
+
+  const handleProductDelete = async (idOrProduct) => {
+    const id = typeof idOrProduct === 'object' ? idOrProduct.id : idOrProduct
+    const target = products.find(p => String(p.id) === String(id))
+    setProducts(prev => prev.filter(p => String(p.id) !== String(id)))
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try {
+        await DB.deleteProduct(id)
+        showToast(`Product ${target?.name || id} deleted • Synced to Supabase`)
+      }
+      catch (e) {
+        console.warn('[products] delete sync failed', e)
+        // restore locally since remote delete failed (e.g. referenced by order_items)
+        if (target) setProducts(prev => [...prev, target].sort((a, b) => Number(a.id) - Number(b.id)))
+        showToast(`Delete failed • ${e?.message || e}`)
+        throw e
+      }
+      finally { setSyncing(false) }
+    } else {
+      showToast(`Product ${target?.name || id} deleted • Saved locally`)
+    }
+  }
+
   const handleMessageReply = async (id, reply) => {
     setMessages(prev => prev.map(m => String(m.id) === String(id) ? { ...m, reply, is_replied: true, isReplied: true, is_read: true, isRead: true } : m))
     if (isSupabaseConfigured()) {
@@ -730,7 +768,7 @@ export default function App() {
 
           {activeTab==='orders' && <OrdersView orders={orders} onUpdateOrders={handleOrdersUpdate} onCancelOrder={handleOrderCancel} onCreateOrder={handleOrderCreate} onUpdateStatus={handleOrderStatusUpdate} onUpdatePaymentStatus={handlePaymentStatusUpdate} showToast={showToast} dbStatus={dbStatus} />}
           {activeTab==='messages' && <MessagesView messages={messages} onReply={handleMessageReply} onBlock={handleMessageBlock} onDelete={handleMessageDelete} onRestore={handleMessageRestore} onMarkRead={handleMessageRead} onHardDelete={(id)=>handleMessageDelete(id,true)} showToast={showToast} />}
-          {activeTab==='products' && <ProductsView products={products} onSavePrice={handleProductPriceSave} onAddProduct={handleProductAdd} />}
+          {activeTab==='products' && <ProductsView products={products} onSavePrice={handleProductPriceSave} onAddProduct={handleProductAdd} onUpdateProduct={handleProductUpdate} onDeleteProduct={handleProductDelete} />}
           {activeTab==='inventory' && <InventoryView inventory={inventory} onUpdate={handleInventoryUpdate} dbStatus={dbStatus} />}
           {activeTab==='borrowed' && <HiramView orders={orders} />}
           {activeTab==='customers' && <CustomersView orders={orders} />}

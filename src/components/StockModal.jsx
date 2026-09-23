@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 const ICON_OPTIONS = ['💧','🧴','🥤','💦','🧊','🔵','⚙️','🏷️','📦','🧼','🫧','🔧']
 
@@ -105,7 +106,7 @@ export default function StockModal({ isOpen, onClose, items, initialItem, onSave
 
   const isNew = mode === 'new'
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal-wide" onClick={e=>e.stopPropagation()}>
         <div className="modal-head">
@@ -271,6 +272,7 @@ export default function StockModal({ isOpen, onClose, items, initialItem, onSave
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

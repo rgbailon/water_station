@@ -1,4 +1,5 @@
 import { useState, useMemo, lazy, Suspense } from 'react'
+import { createPortal } from 'react-dom'
 import { peso } from '../utils/dateUtils'
 import {
   productById,
@@ -323,7 +324,7 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
     onCreate(order)
   }
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal-wide" style={{ maxWidth: 820, maxHeight: '92vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
         <div className="modal-head">
@@ -464,7 +465,8 @@ function NewOrderModal({ onClose, onCreate, showToast }) {
           <button className="btn-save" disabled={!isValid || !hasSelection} style={{ opacity: !isValid || !hasSelection ? 0.5 : 1 }} onClick={handleCreate}>Create order</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

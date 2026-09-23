@@ -4,25 +4,110 @@ import { peso } from '../utils/dateUtils'
 import { sampleProducts, WaterType, BottleSituation, productImages, accentColors } from '../data/ordersData'
 import { exportProductsExcel } from '../utils/export'
 
-export default function ProductsView({ products, onSavePrice, onUpdateProducts, onAddProduct }) {
+// Gated by the database password. Set VITE_DELETE_PASSWORD in .env
+// (same value as PGPASSWORD) — frontend can't read bare PGPASSWORD.
+const DELETE_PASSWORD = import.meta.env.VITE_DELETE_PASSWORD || ''
+
+export default function ProductsView({ products, onSavePrice, onUpdateProducts, onAddProduct, onUpdateProduct, onDeleteProduct }) {
   const list = products?.length ? products : sampleProducts
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('ALL')
   const [bottleFilter, setBottleFilter] = useState('ALL')
   const [containerFilter, setContainerFilter] = useState('ALL')
   const [viewMode, setViewMode] = useState('grid') // grid | table
-  const [editingProduct, setEditingProduct] = useState(null)
-  const [priceDraft, setPriceDraft] = useState('')
 
-  const openEdit = (p) => { setEditingProduct(p); setPriceDraft(String(p.price)) }
-  const closeEdit = () => { setEditingProduct(null); setPriceDraft('') }
-  const saveEdit = () => {
+  // ---- Edit product (price included) ----
+  const [editingProduct, setEditingProduct] = useState(null)
+  const [editName, setEditName] = useState('')
+  const [editPrice, setEditPrice] = useState('')
+  const [editSize, setEditSize] = useState('')
+  const [editContainer, setEditContainer] = useState('Round')
+  const [editDesc, setEditDesc] = useState('')
+  const [editType, setEditType] = useState('PURIFIED')
+  const [editBottle, setEditBottle] = useState('WITH_GALLON')
+  const [editImage, setEditImage] = useState('')
+  const [editAvailable, setEditAvailable] = useState(true)
+  const [editActive, setEditActive] = useState(true)
+
+  const openEdit = (p) => {
+    setEditingProduct(p)
+    setEditName(p.name || '')
+    setEditPrice(String(p.price ?? ''))
+    setEditSize(p.size || '18.9 L (5 Gal)')
+    setEditContainer(p.container || 'Round')
+    setEditDesc(p.description || '')
+    setEditType(p.type || 'PURIFIED')
+    setEditBottle(p.bottleSituation || 'WITH_GALLON')
+    setEditImage(p.image || '')
+    setEditAvailable(p.is_available ?? p.isAvailable ?? p.type === 'PURIFIED')
+    setEditActive(p.is_active ?? p.isActive ?? true)
+  }
+  const closeEdit = () => { setEditingProduct(null) }
+  const saveEdit = async () => {
     if (!editingProduct) return
-    const num = Number(priceDraft)
-    if (priceDraft.trim() === '' || Number.isNaN(num) || num < 0) { alert('Price must be a valid number ≥ 0'); return }
-    if (onSavePrice) onSavePrice(editingProduct.id, num)
-    else if (onUpdateProducts) onUpdateProducts(list.map(p => String(p.id) === String(editingProduct.id) ? { ...p, price: num } : p))
-    closeEdit()
+    const num = Number(editPrice)
+    if (!editName.trim()) { alert('Product name is required'); return }
+    if (editPrice.trim() === '' || Number.isNaN(num) || num < 0) { alert('Price must be a valid number ≥ 0'); return }
+    if (!editSize.trim()) { alert('Size is required'); return }
+    const t = WaterType[editType] || WaterType.PURIFIED
+    const b = BottleSituation[editBottle] || BottleSituation.WITH_GALLON
+    const updated = {
+      ...editingProduct,
+      name: editName.trim(),
+      price: num,
+      size: editSize.trim(),
+      container: editContainer,
+      description: editDesc.trim(),
+      type: t.id,
+      typeLabel: t.label,
+      bottleSituation: b.id,
+      bottleLabel: b.label,
+      image: editImage.trim() || productImages[editContainer],
+      is_available: editAvailable,
+      isAvailable: editAvailable,
+      is_active: editActive,
+      isActive: editActive,
+    }
+    try {
+      if (onUpdateProduct) await onUpdateProduct(updated)
+      else if (onUpdateProducts) onUpdateProducts(list.map(p => String(p.id) === String(editingProduct.id) ? updated : p))
+      else if (onSavePrice) onSavePrice(editingProduct.id, num)
+      closeEdit()
+    } catch (e) {
+      alert(`Update failed: ${e?.message || e}`)
+    }
+  }
+
+  // ---- Delete product (database password gate) ----
+  const [deletingProduct, setDeletingProduct] = useState(null)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  const openDelete = (p) => { setDeletingProduct(p); setDeletePassword(''); setDeleteError(''); setDeleting(false) }
+  const closeDelete = () => { if (!deleting) { setDeletingProduct(null); setDeletePassword(''); setDeleteError('') } }
+  const confirmDelete = async () => {
+    if (!deletingProduct || deleting) return
+    if (!DELETE_PASSWORD) {
+      setDeleteError('Delete password not configured — set VITE_DELETE_PASSWORD in .env (same as database PGPASSWORD) and restart.')
+      return
+    }
+    if (deletePassword !== DELETE_PASSWORD) {
+      setDeleteError('Incorrect database password — product not deleted.')
+      return
+    }
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      if (onDeleteProduct) await onDeleteProduct(deletingProduct.id ?? deletingProduct)
+      else if (onUpdateProducts) onUpdateProducts(list.filter(p => String(p.id) !== String(deletingProduct.id)))
+      setDeletingProduct(null)
+      setDeletePassword('')
+    } catch (e) {
+      setDeleteError(`Delete failed: ${e?.message || e}`)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const [showAdd, setShowAdd] = useState(false)
@@ -211,13 +296,14 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
                     <span className="pill blue" style={{ fontSize: 11 }}>{p.typeLabel}</span>
                     <span className="pill slate" style={{ fontSize: 11 }}>{p.bottleLabel}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 8, borderTop: '1px solid var(--slate-100)', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <b style={{ fontSize: 16, color: 'var(--slate-900)' }}>{peso(p.price)}</b>
-                      <button className="btn-xs" onClick={() => openEdit(p)} title={`Edit price of ${p.name}`}>✎ Edit</button>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 8, borderTop: '1px solid var(--slate-100)', gap: 8, flexWrap: 'wrap' }}>
+                    <b style={{ fontSize: 16, color: 'var(--slate-900)' }}>{peso(p.price)}</b>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn-xs" onClick={() => openEdit(p)} title={`Edit ${p.name}`}>✎ Edit</button>
+                      <button className="btn-xs danger" onClick={() => openDelete(p)} title={`Delete ${p.name}`}>🗑 Delete</button>
                     </div>
-                    {isAvailable ? <span className="pill green" style={{ fontSize: 11 }}>Ready to order</span> : <span className="pill amber" style={{ fontSize: 11 }}>Coming soon</span>}
                   </div>
+                  <div>{isAvailable ? <span className="pill green" style={{ fontSize: 11 }}>Ready to order</span> : <span className="pill amber" style={{ fontSize: 11 }}>Coming soon</span>}</div>
                 </div>
               </div>
             )
@@ -257,7 +343,12 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
                   <td><span className="pill blue" style={{ fontSize: 11 }}>{p.typeLabel}</span></td>
                   <td><span className="pill slate" style={{ fontSize: 11 }}>{p.bottleLabel}</span></td>
                   <td>{p.type === 'PURIFIED' ? <span className="pill green" style={{ fontSize: 11 }}>Ready</span> : <span className="pill amber" style={{ fontSize: 11 }}>Soon</span>}</td>
-                  <td><button className="btn-xs" onClick={() => openEdit(p)} title={`Edit price of ${p.name}`}>✎ Edit price</button></td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn-xs" onClick={() => openEdit(p)} title={`Edit ${p.name}`}>✎ Edit</button>
+                      <button className="btn-xs danger" onClick={() => openDelete(p)} title={`Delete ${p.name}`}>🗑 Delete</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -267,36 +358,167 @@ export default function ProductsView({ products, onSavePrice, onUpdateProducts, 
 
       <div style={{ margin: '0 18px 18px', background: '#f8fafc', border: '1px solid var(--slate-200)', borderRadius: 12, padding: '12px 14px', fontSize: 12.5, color: 'var(--slate-600)', lineHeight: 1.5, display: 'flex', gap: 10 }}>
         <span>💡</span>
-        <span><b>Tip:</b> Purified water can be ordered right now. Mineral and Alkaline options will be available soon. Prices depend on whether you already have a gallon, need a new one, or want to borrow. Click <b>✎ Edit</b> to update a price — it syncs to Supabase.</span>
+        <span><b>Tip:</b> Purified water can be ordered right now. Mineral and Alkaline options will be available soon. Click <b>✎ Edit</b> to update any field — price included — it syncs to Supabase. Delete requires the database password.</span>
       </div>
 
       {editingProduct && createPortal((
         <div className="modal-overlay" onClick={closeEdit}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 680, maxHeight: '92vh', overflow: 'auto' }}>
             <div className="modal-head">
               <div>
-                <h3>Edit Price • #{editingProduct.id}</h3>
+                <h3>Edit Product • #{editingProduct.id}</h3>
                 <p>{editingProduct.name} — {editingProduct.size} • {editingProduct.container} • {editingProduct.bottleLabel}</p>
               </div>
               <button className="btn-close" onClick={closeEdit}>✕</button>
             </div>
             <div className="modal-body">
+              <div className="grid-2">
+                <div className="field">
+                  <label>Product name *</label>
+                  <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="e.g., Purified Refill" />
+                </div>
+                <div className="field">
+                  <label>Price (₱) *</label>
+                  <input type="number" min="0" step="0.01" value={editPrice} onChange={e => setEditPrice(e.target.value)} placeholder="0.00" />
+                </div>
+              </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Water type *</label>
+                  <select value={editType} onChange={e => setEditType(e.target.value)}>
+                    {Object.values(WaterType).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Bottle type *</label>
+                  <select value={editBottle} onChange={e => setEditBottle(e.target.value)}>
+                    {Object.values(BottleSituation).map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Container *</label>
+                  <select value={editContainer} onChange={e => setEditContainer(e.target.value)}>
+                    <option value="Round">Round</option>
+                    <option value="Slim">Slim</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Size *</label>
+                  <input value={editSize} onChange={e => setEditSize(e.target.value)} placeholder="18.9 L (5 Gal)" />
+                </div>
+              </div>
               <div className="field">
-                <label>Price (₱) *</label>
+                <label>Description</label>
+                <input value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="e.g., Refill for round 5-gallon jug..." />
+              </div>
+              <div className="field">
+                <label>Image</label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <img
+                    src={editImage.trim() || productImages[editContainer]}
+                    alt="Preview"
+                    style={{ width: 64, height: 64, objectFit: 'contain', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 10, padding: 4, flexShrink: 0 }}
+                    onError={e => { const fb = productImages[editContainer]; if (e.currentTarget.src !== fb) e.currentTarget.src = fb }}
+                  />
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button type="button" className="btn-xs" onClick={() => setEditImage('')} title="Auto image by container">Auto</button>
+                    {Object.entries(productImages).map(([key, url]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setEditImage(url)}
+                        title={`${key} bottle image`}
+                        style={{
+                          width: 44, height: 44, borderRadius: 9, padding: 3, cursor: 'pointer',
+                          border: editImage === url ? '2px solid var(--blue-600)' : '1px solid var(--slate-200)',
+                          background: 'var(--white)',
+                        }}
+                      >
+                        <img src={url} alt={key} style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <input
-                  type="number" min="0" step="0.01" value={priceDraft}
-                  onChange={e => setPriceDraft(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') saveEdit() }}
-                  placeholder="0.00" autoFocus
+                  value={editImage}
+                  onChange={e => setEditImage(e.target.value)}
+                  placeholder="Custom image URL (optional — blank = auto by container)"
+                  style={{ marginTop: 8 }}
                 />
               </div>
+              <div className="grid-2">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
+                  <input type="checkbox" checked={editAvailable} onChange={e => setEditAvailable(e.target.checked)} />
+                  Available for ordering
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
+                  <input type="checkbox" checked={editActive} onChange={e => setEditActive(e.target.checked)} />
+                  Active product
+                </label>
+              </div>
               <div style={{ fontSize: 12, color: 'var(--slate-500)', background: 'var(--slate-50)', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--slate-200)' }}>
-                Current price: <b style={{ color: 'var(--slate-900)' }}>{peso(editingProduct.price)}</b> — updating applies to future orders and syncs to Supabase when configured.
+                Current price: <b style={{ color: 'var(--slate-900)' }}>{peso(editingProduct.price)}</b> — saving updates all fields (price included) and syncs to Supabase when configured.
               </div>
             </div>
             <div className="modal-foot">
               <button className="btn-cancel" onClick={closeEdit}>Cancel</button>
-              <button className="btn-save" onClick={saveEdit}>Update Price</button>
+              <button className="btn-save" onClick={saveEdit}>Save Product</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
+      {deletingProduct && createPortal((
+        <div className="modal-overlay" onClick={closeDelete}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <div className="modal-head">
+              <div>
+                <h3>🗑 Delete Product • #{deletingProduct.id}</h3>
+                <p>{deletingProduct.name} — {peso(deletingProduct.price)} • {deletingProduct.container}</p>
+              </div>
+              <button className="btn-close" onClick={closeDelete}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#991b1b', lineHeight: 1.5 }}>
+                <b>This cannot be undone.</b> The product will be removed from Supabase and this device.
+                Products used in past orders may be blocked by the database.
+              </div>
+              <div className="field">
+                <label>Database password *</label>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={e => { setDeletePassword(e.target.value); setDeleteError('') }}
+                  onKeyDown={e => { if (e.key === 'Enter') confirmDelete() }}
+                  placeholder="Enter database password to confirm"
+                  autoFocus
+                  autoComplete="off"
+                />
+                <span style={{ fontSize: 11, color: 'var(--slate-500)' }}>Without the database password, deletion is blocked.</span>
+              </div>
+              {deleteError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 12px', fontSize: 12.5, color: '#991b1b' }}>
+                  {deleteError}
+                </div>
+              )}
+              {!DELETE_PASSWORD && !deleteError && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 12px', fontSize: 12.5, color: '#92400e' }}>
+                  Delete password not configured — set <code>VITE_DELETE_PASSWORD</code> in <code>.env</code> (same as database <code>PGPASSWORD</code>) and restart.
+                </div>
+              )}
+            </div>
+            <div className="modal-foot">
+              <button className="btn-cancel" onClick={closeDelete} disabled={deleting}>Cancel</button>
+              <button
+                className="btn-save"
+                onClick={confirmDelete}
+                disabled={deleting || !deletePassword.trim()}
+                style={{ background: '#dc2626', boxShadow: '0 4px 10px rgba(220,38,38,0.3)', opacity: deleting || !deletePassword.trim() ? 0.5 : 1 }}
+              >
+                {deleting ? 'Deleting…' : 'Delete Product'}
+              </button>
             </div>
           </div>
         </div>

@@ -282,6 +282,11 @@ export async function upsertProducts(products) {
   const res = await sb.from('products').upsert(rows, { onConflict: 'id' }).select()
   return handleErr(res, 'upsertProducts').map(productFromRow)
 }
+export async function deleteProduct(id) {
+  const sb = requireClient()
+  const res = await sb.from('products').delete().eq('id', id)
+  if (res.error) throw res.error
+}
 
 // ---------- INVENTORY ----------
 
