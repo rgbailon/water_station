@@ -283,25 +283,32 @@
 }
 .table.orders-table td,
 .table.expenses-table td,
-.table.borrowed-table td { background: transparent; }
+.table.borrowed-table td,
+.table.customers-table td { background: transparent; }
 .table.orders-table tr:hover td,
 .table.expenses-table tr:hover td,
-.table.borrowed-table tr:hover td { filter: brightness(0.98); }
+.table.borrowed-table tr:hover td,
+.table.customers-table tr:hover td { filter: brightness(0.98); }
 .table.orders-table tbody tr:nth-child(odd),
 .table.expenses-table tbody tr:nth-child(odd),
-.table.borrowed-table tbody tr:nth-child(odd) { background: #ffffff; }
+.table.borrowed-table tbody tr:nth-child(odd),
+.table.customers-table tbody tr:nth-child(odd) { background: #ffffff; }
 .table.orders-table tbody tr:nth-child(even),
 .table.expenses-table tbody tr:nth-child(even),
-.table.borrowed-table tbody tr:nth-child(even) { background: #f1f5f9; }
+.table.borrowed-table tbody tr:nth-child(even),
+.table.customers-table tbody tr:nth-child(even) { background: #f1f5f9; }
 [data-theme="dark"] .table.orders-table td,
 [data-theme="dark"] .table.expenses-table td,
-[data-theme="dark"] .table.borrowed-table td { background: transparent; }
+[data-theme="dark"] .table.borrowed-table td,
+[data-theme="dark"] .table.customers-table td { background: transparent; }
 [data-theme="dark"] .table.orders-table tbody tr:nth-child(odd),
 [data-theme="dark"] .table.expenses-table tbody tr:nth-child(odd),
-[data-theme="dark"] .table.borrowed-table tbody tr:nth-child(odd) { background: #0f172a; }
+[data-theme="dark"] .table.borrowed-table tbody tr:nth-child(odd),
+[data-theme="dark"] .table.customers-table tbody tr:nth-child(odd) { background: #0f172a; }
 [data-theme="dark"] .table.orders-table tbody tr:nth-child(even),
 [data-theme="dark"] .table.expenses-table tbody tr:nth-child(even),
-[data-theme="dark"] .table.borrowed-table tbody tr:nth-child(even) { background: #1e293b; }
+[data-theme="dark"] .table.borrowed-table tbody tr:nth-child(even),
+[data-theme="dark"] .table.customers-table tbody tr:nth-child(even) { background: #1e293b; }
 .table tr:last-child td:first-child { border-radius: 0 0 0 10px; }
 .table tr:last-child td:last-child { border-radius: 0 0 10px 0; }
 .pill {

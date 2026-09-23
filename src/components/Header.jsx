@@ -10,7 +10,7 @@ function timeAgo(ts) {
   return `${Math.floor(s / 60)}m ago`
 }
 
-export default function Header({ onPrint, theme, onToggleTheme, printDateLabel, events, inventory, dbStatus, syncing, soundOn, onToggleSound, lastSyncAt }) {
+export default function Header({ onPrint, theme, onToggleTheme, printDateLabel, events, inventory, dbStatus, syncing, soundOn, onToggleSound, lastSyncAt, activeTab, onNavChange }) {
   const [, setTick] = useState(0)
   useEffect(() => {
     const t = setInterval(() => setTick(x => x + 1), 5000)
@@ -35,6 +35,8 @@ export default function Header({ onPrint, theme, onToggleTheme, printDateLabel, 
         </div>
       </div>
       <div className="header-actions">
+        <button className={`btn btn-ghost ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => onNavChange?.('calendar')} title="Calendar — sales & schedule">📅 Calendar</button>
+        <button className={`btn btn-ghost ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => onNavChange?.('reports')} title="Reports — analytics">📈 Reports</button>
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         <button className="btn btn-ghost" onClick={onToggleSound} title={soundOn ? 'Sound ON — click to mute' : 'Sound OFF — click to enable'} aria-label={soundOn ? 'Mute sound' : 'Enable sound'} style={{ background: soundOn ? 'var(--blue-50)' : 'var(--white)', borderColor: soundOn ? 'var(--blue-100)' : 'var(--slate-200)' }}>{soundOn ? '🔔' : '🔕'}</button>
         <button className="btn btn-ghost" onClick={onPrint} title={`Print daily sheet for ${printDateLabel}`}>

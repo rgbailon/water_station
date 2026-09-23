@@ -1,13 +1,12 @@
 const nav = [
   { id: 'dashboard', label: 'Dashboard', sub: 'Overview & Charts', icon: '📊' },
-  { id: 'calendar', label: 'Calendar', sub: 'Sales & Schedule', icon: '📅' },
   { id: 'orders', label: 'Orders', sub: 'Customer Orders', icon: '🧾' },
   { id: 'messages', label: 'Messages', sub: 'Customer inbox', icon: '💬' },
   { id: 'products', label: 'Products', sub: 'Water Catalog • 18 items', icon: '🧴' },
   { id: 'inventory', label: 'Inventory', sub: 'Stock & Supplies', icon: '📦' },
   { id: 'borrowed', label: 'Borrowed', sub: 'Borrowed Gallons', icon: '🤝' },
+  { id: 'customers', label: 'Customers', sub: 'Directory & Locations', icon: '👥' },
   { id: 'expenses', label: 'Expenses', sub: 'Costs & Bills', icon: '💸' },
-  { id: 'reports', label: 'Reports', sub: 'Analytics', icon: '📈' },
 ]
 
 const badgeHints = {

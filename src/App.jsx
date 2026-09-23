@@ -6,6 +6,7 @@ import CalendarGrid from './components/CalendarGrid'
 import EventModal from './components/EventModal'
 import InventoryView from './components/InventoryView'
 import HiramView from './components/HiramView'
+import CustomersView from './components/CustomersView'
 import ExpensesView from './components/ExpensesView'
 import ReportsView from './components/ReportsView'
 import DailyPrintSheet from './components/DailyPrintSheet'
@@ -676,7 +677,7 @@ export default function App() {
   return (
     <>
       <BubbleBackground />
-      <Header onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} dbStatus={dbStatus} syncing={syncing} soundOn={soundOn} onToggleSound={handleToggleSound} lastSyncAt={lastSyncAt} />
+      <Header onPrint={handlePrint} printDateLabel={selectedDate.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })} theme={theme} onToggleTheme={toggleTheme} events={events} inventory={inventory} dbStatus={dbStatus} syncing={syncing} soundOn={soundOn} onToggleSound={handleToggleSound} lastSyncAt={lastSyncAt} activeTab={activeTab} onNavChange={handleNavChange} />
 
       <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <Sidebar active={activeTab} onChange={handleNavChange} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} badges={navBadges} />
@@ -732,6 +733,7 @@ export default function App() {
           {activeTab==='products' && <ProductsView products={products} onSavePrice={handleProductPriceSave} onAddProduct={handleProductAdd} />}
           {activeTab==='inventory' && <InventoryView inventory={inventory} onUpdate={handleInventoryUpdate} dbStatus={dbStatus} />}
           {activeTab==='borrowed' && <HiramView orders={orders} />}
+          {activeTab==='customers' && <CustomersView orders={orders} />}
           {activeTab==='expenses' && <ExpensesView expenses={expenses} onUpdateExpenses={setExpenses} onSaveExpense={handleExpenseSave} onDeleteExpense={handleExpenseDelete} />}
           {activeTab==='reports' && <ReportsView events={events} inventory={inventory} />}
         </main>
