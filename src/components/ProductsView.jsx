@@ -1,15 +1,73 @@
 import { useState, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { peso } from '../utils/dateUtils'
-import { sampleProducts } from '../data/ordersData'
+import { sampleProducts, WaterType, BottleSituation, productImages, accentColors } from '../data/ordersData'
 import { exportProductsExcel } from '../utils/export'
 
-export default function ProductsView({ products }) {
+export default function ProductsView({ products, onSavePrice, onUpdateProducts, onAddProduct }) {
   const list = products?.length ? products : sampleProducts
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('ALL')
   const [bottleFilter, setBottleFilter] = useState('ALL')
   const [containerFilter, setContainerFilter] = useState('ALL')
   const [viewMode, setViewMode] = useState('grid') // grid | table
+  const [editingProduct, setEditingProduct] = useState(null)
+  const [priceDraft, setPriceDraft] = useState('')
+
+  const openEdit = (p) => { setEditingProduct(p); setPriceDraft(String(p.price)) }
+  const closeEdit = () => { setEditingProduct(null); setPriceDraft('') }
+  const saveEdit = () => {
+    if (!editingProduct) return
+    const num = Number(priceDraft)
+    if (priceDraft.trim() === '' || Number.isNaN(num) || num < 0) { alert('Price must be a valid number ≥ 0'); return }
+    if (onSavePrice) onSavePrice(editingProduct.id, num)
+    else if (onUpdateProducts) onUpdateProducts(list.map(p => String(p.id) === String(editingProduct.id) ? { ...p, price: num } : p))
+    closeEdit()
+  }
+
+  const [showAdd, setShowAdd] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addPrice, setAddPrice] = useState('')
+  const [addType, setAddType] = useState('PURIFIED')
+  const [addBottle, setAddBottle] = useState('WITH_GALLON')
+  const [addContainer, setAddContainer] = useState('Round')
+  const [addSize, setAddSize] = useState('18.9 L (5 Gal)')
+  const [addDesc, setAddDesc] = useState('')
+  const [addImage, setAddImage] = useState('')
+
+  const openAdd = () => {
+    setAddName(''); setAddPrice(''); setAddType('PURIFIED')
+    setAddBottle('WITH_GALLON'); setAddContainer('Round')
+    setAddSize('18.9 L (5 Gal)'); setAddDesc(''); setAddImage('')
+    setShowAdd(true)
+  }
+  const saveAdd = () => {
+    const num = Number(addPrice)
+    if (!addName.trim()) { alert('Product name is required'); return }
+    if (addPrice.trim() === '' || Number.isNaN(num) || num < 0) { alert('Price must be a valid number ≥ 0'); return }
+    const t = WaterType[addType] || WaterType.PURIFIED
+    const b = BottleSituation[addBottle] || BottleSituation.WITH_GALLON
+    const draft = {
+      name: addName.trim(),
+      size: addSize.trim() || '18.9 L (5 Gal)',
+      container: addContainer,
+      description: addDesc.trim(),
+      price: num,
+      type: t.id,
+      typeLabel: t.label,
+      bottleSituation: b.id,
+      bottleLabel: b.label,
+      accent: accentColors.DeepWater.hex,
+      accentArgb: accentColors.DeepWater.argb,
+      image: addImage.trim() || productImages[addContainer],
+      is_available: t.id === 'PURIFIED',
+      is_active: true,
+      is_featured: false,
+    }
+    if (onAddProduct) onAddProduct(draft)
+    else if (onUpdateProducts) onUpdateProducts([...list, { ...draft, id: Math.max(0, ...list.map(p => Number(p.id) || 0)) + 1 }])
+    setShowAdd(false)
+  }
 
   const filtered = useMemo(() => {
     return list.filter(p => {
@@ -44,6 +102,7 @@ export default function ProductsView({ products }) {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn-xs" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => exportProductsExcel(filtered.length ? filtered : list)} title="Download spreadsheet">⬇ Download</button>
+          <button className="btn btn-primary" onClick={openAdd}>+ Add Product</button>
           <div style={{ display: 'inline-flex', border: '1px solid var(--slate-200)', borderRadius: 9, overflow: 'hidden' }}>
             <button
               onClick={() => setViewMode('grid')}
@@ -152,8 +211,11 @@ export default function ProductsView({ products }) {
                     <span className="pill blue" style={{ fontSize: 11 }}>{p.typeLabel}</span>
                     <span className="pill slate" style={{ fontSize: 11 }}>{p.bottleLabel}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 8, borderTop: '1px solid var(--slate-100)' }}>
-                    <b style={{ fontSize: 16, color: 'var(--slate-900)' }}>{peso(p.price)}</b>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 8, borderTop: '1px solid var(--slate-100)', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <b style={{ fontSize: 16, color: 'var(--slate-900)' }}>{peso(p.price)}</b>
+                      <button className="btn-xs" onClick={() => openEdit(p)} title={`Edit price of ${p.name}`}>✎ Edit</button>
+                    </div>
                     {isAvailable ? <span className="pill green" style={{ fontSize: 11 }}>Ready to order</span> : <span className="pill amber" style={{ fontSize: 11 }}>Coming soon</span>}
                   </div>
                 </div>
@@ -175,6 +237,7 @@ export default function ProductsView({ products }) {
                 <th>Water type</th>
                 <th>Bottle type</th>
                 <th>Available</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -194,6 +257,7 @@ export default function ProductsView({ products }) {
                   <td><span className="pill blue" style={{ fontSize: 11 }}>{p.typeLabel}</span></td>
                   <td><span className="pill slate" style={{ fontSize: 11 }}>{p.bottleLabel}</span></td>
                   <td>{p.type === 'PURIFIED' ? <span className="pill green" style={{ fontSize: 11 }}>Ready</span> : <span className="pill amber" style={{ fontSize: 11 }}>Soon</span>}</td>
+                  <td><button className="btn-xs" onClick={() => openEdit(p)} title={`Edit price of ${p.name}`}>✎ Edit price</button></td>
                 </tr>
               ))}
             </tbody>
@@ -203,8 +267,136 @@ export default function ProductsView({ products }) {
 
       <div style={{ margin: '0 18px 18px', background: '#f8fafc', border: '1px solid var(--slate-200)', borderRadius: 12, padding: '12px 14px', fontSize: 12.5, color: 'var(--slate-600)', lineHeight: 1.5, display: 'flex', gap: 10 }}>
         <span>💡</span>
-        <span><b>Tip:</b> Purified water can be ordered right now. Mineral and Alkaline options will be available soon. Prices depend on whether you already have a gallon, need a new one, or want to borrow.</span>
+        <span><b>Tip:</b> Purified water can be ordered right now. Mineral and Alkaline options will be available soon. Prices depend on whether you already have a gallon, need a new one, or want to borrow. Click <b>✎ Edit</b> to update a price — it syncs to Supabase.</span>
       </div>
+
+      {editingProduct && createPortal((
+        <div className="modal-overlay" onClick={closeEdit}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <h3>Edit Price • #{editingProduct.id}</h3>
+                <p>{editingProduct.name} — {editingProduct.size} • {editingProduct.container} • {editingProduct.bottleLabel}</p>
+              </div>
+              <button className="btn-close" onClick={closeEdit}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="field">
+                <label>Price (₱) *</label>
+                <input
+                  type="number" min="0" step="0.01" value={priceDraft}
+                  onChange={e => setPriceDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveEdit() }}
+                  placeholder="0.00" autoFocus
+                />
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--slate-500)', background: 'var(--slate-50)', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--slate-200)' }}>
+                Current price: <b style={{ color: 'var(--slate-900)' }}>{peso(editingProduct.price)}</b> — updating applies to future orders and syncs to Supabase when configured.
+              </div>
+            </div>
+            <div className="modal-foot">
+              <button className="btn-cancel" onClick={closeEdit}>Cancel</button>
+              <button className="btn-save" onClick={saveEdit}>Update Price</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
+      {showAdd && createPortal((
+        <div className="modal-overlay" onClick={() => setShowAdd(false)}>
+          <div className="modal modal-wide" onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <h3>Add Product</h3>
+                <p>New water refill option — syncs to Supabase</p>
+              </div>
+              <button className="btn-close" onClick={() => setShowAdd(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="grid-2">
+                <div className="field">
+                  <label>Product name *</label>
+                  <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="e.g., Purified Refill" />
+                </div>
+                <div className="field">
+                  <label>Price (₱) *</label>
+                  <input type="number" min="0" step="0.01" value={addPrice} onChange={e => setAddPrice(e.target.value)} placeholder="0.00" />
+                </div>
+              </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Water type *</label>
+                  <select value={addType} onChange={e => setAddType(e.target.value)}>
+                    {Object.values(WaterType).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Bottle type *</label>
+                  <select value={addBottle} onChange={e => setAddBottle(e.target.value)}>
+                    {Object.values(BottleSituation).map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Container *</label>
+                  <select value={addContainer} onChange={e => setAddContainer(e.target.value)}>
+                    <option value="Round">Round</option>
+                    <option value="Slim">Slim</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Size</label>
+                  <input value={addSize} onChange={e => setAddSize(e.target.value)} placeholder="18.9 L (5 Gal)" />
+                </div>
+              </div>
+              <div className="field">
+                <label>Description</label>
+                <input value={addDesc} onChange={e => setAddDesc(e.target.value)} placeholder="e.g., Refill for round 5-gallon jug..." />
+              </div>
+              <div className="field">
+                <label>Image</label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <img
+                    src={addImage.trim() || productImages[addContainer]}
+                    alt="Preview"
+                    style={{ width: 64, height: 64, objectFit: 'contain', background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 10, padding: 4, flexShrink: 0 }}
+                    onError={e => { const fb = productImages[addContainer]; if (e.currentTarget.src !== fb) e.currentTarget.src = fb }}
+                  />
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button type="button" className="btn-xs" onClick={() => setAddImage('')} title="Auto image by container">Auto</button>
+                    {Object.entries(productImages).map(([key, url]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setAddImage(url)}
+                        title={`${key} bottle image`}
+                        style={{
+                          width: 44, height: 44, borderRadius: 9, padding: 3, cursor: 'pointer',
+                          border: addImage === url ? '2px solid var(--blue-600)' : '1px solid var(--slate-200)',
+                          background: 'var(--white)',
+                        }}
+                      >
+                        <img src={url} alt={key} style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <input
+                  value={addImage}
+                  onChange={e => setAddImage(e.target.value)}
+                  placeholder="Custom image URL (optional — blank = auto by container)"
+                  style={{ marginTop: 8 }}
+                />
+              </div>
+            </div>
+            <div className="modal-foot">
+              <button className="btn-cancel" onClick={() => setShowAdd(false)}>Cancel</button>
+              <button className="btn-save" onClick={saveAdd}>Save Product</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
     </div>
   )
 }

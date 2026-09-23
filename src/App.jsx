@@ -10,7 +10,7 @@ import ExpensesView from './components/ExpensesView'
 import ReportsView from './components/ReportsView'
 import DailyPrintSheet from './components/DailyPrintSheet'
 import { initialEvents, inventoryItems as initialInventory, hiramRecords as initialHiram, expensesList as initialExpenses } from './data/mockData'
-import { defaultSampleOrders, ORDER_STORE_SPEC, sampleProducts, recomputeOrderTotals, getOrderStatus, resolveStatusForOrder, autoMoveNotice, normalizeStatusId } from './data/ordersData'
+import { defaultSampleOrders, ORDER_STORE_SPEC, sampleProducts, productImages, recomputeOrderTotals, getOrderStatus, resolveStatusForOrder, autoMoveNotice, normalizeStatusId } from './data/ordersData'
 import DashboardView from './components/DashboardView'
 import BubbleBackground from './components/BubbleBackground'
 import OrdersView from './components/OrdersView'
@@ -543,6 +543,46 @@ export default function App() {
     } else showToast('Expense deleted locally')
   }
 
+  const handleProductPriceSave = async (productId, newPrice) => {
+    const num = Number(newPrice)
+    if (Number.isNaN(num) || num < 0) { showToast('Invalid price — must be a number ≥ 0'); return }
+    const next = products.map(p => String(p.id) === String(productId) ? { ...p, price: num } : p)
+    setProducts(next)
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try {
+        const updated = next.find(p => String(p.id) === String(productId))
+        await DB.upsertProducts([updated])
+        showToast(`Price updated to ${peso(num)} • Synced to Supabase`)
+      }
+      catch (e) { console.warn('[products] price sync failed', e); showToast('Price updated • Saved locally (sync failed)') }
+      finally { setSyncing(false) }
+    } else {
+      showToast(`Price updated to ${peso(num)} • Saved locally`)
+    }
+  }
+
+  const handleProductAdd = async (draft) => {
+    const newId = Math.max(0, ...products.map(p => Number(p.id) || 0)) + 1
+    const product = { ...draft, id: newId }
+    setProducts(prev => [...prev, product])
+    if (isSupabaseConfigured()) {
+      setSyncing(true)
+      try {
+        const saved = await DB.upsertProducts([product])
+        if (saved?.length) {
+          const row = saved[0]
+          setProducts(prev => prev.map(p => String(p.id) === String(newId) ? { ...row, image: row.image || productImages[row.container] } : p))
+        }
+        showToast(`${product.name} added • Synced to Supabase`)
+      }
+      catch (e) { console.warn('[products] add sync failed', e); showToast('Product added • Saved locally (sync failed)') }
+      finally { setSyncing(false) }
+    } else {
+      showToast(`${product.name} added • Saved locally`)
+    }
+  }
+
   const handleMessageReply = async (id, reply) => {
     setMessages(prev => prev.map(m => String(m.id) === String(id) ? { ...m, reply, is_replied: true, isReplied: true, is_read: true, isRead: true } : m))
     if (isSupabaseConfigured()) {
@@ -689,7 +729,7 @@ export default function App() {
 
           {activeTab==='orders' && <OrdersView orders={orders} onUpdateOrders={handleOrdersUpdate} onCancelOrder={handleOrderCancel} onCreateOrder={handleOrderCreate} onUpdateStatus={handleOrderStatusUpdate} onUpdatePaymentStatus={handlePaymentStatusUpdate} showToast={showToast} dbStatus={dbStatus} />}
           {activeTab==='messages' && <MessagesView messages={messages} onReply={handleMessageReply} onBlock={handleMessageBlock} onDelete={handleMessageDelete} onRestore={handleMessageRestore} onMarkRead={handleMessageRead} onHardDelete={(id)=>handleMessageDelete(id,true)} showToast={showToast} />}
-          {activeTab==='products' && <ProductsView products={products} />}
+          {activeTab==='products' && <ProductsView products={products} onSavePrice={handleProductPriceSave} onAddProduct={handleProductAdd} />}
           {activeTab==='inventory' && <InventoryView inventory={inventory} onUpdate={handleInventoryUpdate} dbStatus={dbStatus} />}
           {activeTab==='borrowed' && <HiramView orders={orders} />}
           {activeTab==='expenses' && <ExpensesView expenses={expenses} onUpdateExpenses={setExpenses} onSaveExpense={handleExpenseSave} onDeleteExpense={handleExpenseDelete} />}
