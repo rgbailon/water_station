@@ -13,7 +13,6 @@ export default function ThemeToggle({ theme, onToggle }) {
         <span className="icon-moon">🌙</span>
         <span className="thumb">{isDark ? '🌙' : '☀️'}</span>
       </span>
-      <span className="label">{isDark ? 'Dark' : 'Light'}</span>
     </button>
   )
 }
