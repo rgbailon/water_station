@@ -75,7 +75,7 @@ export default function HiramView({ orders = [] }) {
       </div>
 
       <div className="table-wrap">
-        <table className="table">
+        <table className="table borrowed-table">
           <thead>
             <tr>
               <th>Order</th>
@@ -96,7 +96,7 @@ export default function HiramView({ orders = [] }) {
               const borrowed = o.borrowedCount ?? o.borrowed_count ?? 0
               const barangay = (o.address || '').split(',')[0].trim() || '—'
               return (
-                <tr key={o.orderId} style={{ background: borrowed > 0 ? '#fffbeb' : undefined }}>
+                <tr key={o.orderId}>
                   <td>
                     <div style={{ fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--slate-900)', fontSize: 13 }}>{o.orderId}</div>
                     <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>{new Date(o.date).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}</div>

@@ -65,7 +65,7 @@ export default function ExpensesView({ expenses, onUpdateExpenses, onSaveExpense
         </div>
       </div>
       <div className="table-wrap">
-        <table className="table">
+        <table className="table expenses-table">
           <thead>
             <tr>
               <th>Date</th>
