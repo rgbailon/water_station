@@ -216,6 +216,8 @@ export function orderFromRow(r, items = []) {
     customerName: r.customer_name,
     phone: r.phone,
     address: r.address,
+    latitude: r.latitude != null ? Number(r.latitude) : null,
+    longitude: r.longitude != null ? Number(r.longitude) : null,
     subtotal: Number(r.subtotal),
     deliveryFee: Number(r.delivery_fee),
     total: Number(r.total),
@@ -244,11 +246,15 @@ export function orderToRow(o) {
   const borrowedFromItems = Array.isArray(o.items) ? o.items.reduce((s,it)=> s + (it.is_borrow || it.product?.bottleSituation === 'BORROW' ? (it.quantity||0) : 0), 0) : 0
   const borrowed_count = o.borrowedCount ?? o.borrowed_count ?? borrowedFromItems
   const payment_status = o.payment_status || o.paymentStatus || (o.isPaid || o.is_paid ? 'PAID' : 'UNPAID')
+  const lat = o.latitude ?? o.lat ?? null
+  const lng = o.longitude ?? o.lng ?? null
   return {
     order_id: o.orderId || o.order_id,
     customer_name: o.customerName || o.customer_name,
     phone: o.phone || '',
     address: o.address || '',
+    latitude: lat === '' || lat == null ? null : Number(lat),
+    longitude: lng === '' || lng == null ? null : Number(lng),
     subtotal: o.subtotal,
     delivery_fee: o.deliveryFee ?? o.delivery_fee ?? 0,
     total: o.total,
@@ -580,6 +586,71 @@ export async function restoreMessage(id) {
   const sb = requireClient()
   const res = await sb.from('messages').update({ is_deleted: false }).eq('id', id).select().single()
   return messageFromRow(handleErr(res, 'restoreMessage'))
+}
+
+// ---------- CUSTOMERS (directory + pinned GPS) ----------
+
+export function customerFromRow(r) {
+  if (!r) return null
+  const lat = r.latitude ?? r.lat ?? null
+  const lng = r.longitude ?? r.lng ?? null
+  return {
+    id: r.id,
+    name: r.name,
+    phone: r.phone || '',
+    barangay: r.barangay || '',
+    address: r.address || '',
+    notes: r.notes || '',
+    latitude: lat != null && lat !== '' ? Number(lat) : null,
+    longitude: lng != null && lng !== '' ? Number(lng) : null,
+    lat: lat != null && lat !== '' ? Number(lat) : null,
+    lng: lng != null && lng !== '' ? Number(lng) : null,
+    is_active: r.is_active ?? true,
+    is_archived: r.is_archived ?? false,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  }
+}
+export function customerToRow(c) {
+  const lat = c.latitude ?? c.lat ?? null
+  const lng = c.longitude ?? c.lng ?? null
+  return {
+    ...(c.id ? { id: c.id } : {}),
+    name: c.name,
+    phone: c.phone || '',
+    barangay: c.barangay || '',
+    address: c.address || '',
+    notes: c.notes || '',
+    latitude: lat === '' || lat == null ? null : Number(lat),
+    longitude: lng === '' || lng == null ? null : Number(lng),
+    is_active: c.is_active ?? true,
+    is_archived: c.is_archived ?? false,
+  }
+}
+
+export async function fetchCustomers({ includeArchived = false } = {}) {
+  const sb = requireClient()
+  let q = sb.from('customers').select('*').order('name')
+  if (!includeArchived) q = q.eq('is_archived', false)
+  const res = await q.limit(2000)
+  return handleErr(res, 'fetchCustomers').map(customerFromRow)
+}
+export async function upsertCustomer(customer) {
+  const sb = requireClient()
+  const row = customerToRow(customer)
+  const payload = row.id ? row : Object.fromEntries(Object.entries(row).filter(([k]) => k !== 'id'))
+  const res = await sb.from('customers').upsert(payload, { onConflict: 'id' }).select().single()
+  return customerFromRow(handleErr(res, 'upsertCustomer'))
+}
+export async function deleteCustomer(id, hard = false) {
+  const sb = requireClient()
+  if (hard) {
+    const res = await sb.from('customers').delete().eq('id', id)
+    if (res.error) throw res.error
+    return true
+  }
+  const res = await sb.from('customers').update({ is_archived: true }).eq('id', id).select().single()
+  return customerFromRow(handleErr(res, 'deleteCustomer'))
 }
 
 // ---------- realtime helpers ----------
