@@ -316,17 +316,11 @@
   overflow: hidden;
 }
 
-/* Guides (pick-up + delivery) sit on a solid page — no see-through dim, pinned to top */
+/* Guides (pick-up + delivery) — fullscreen transparent blurry backdrop like the daily sheet, pinned to top */
 .print-preview-overlay.guide-overlay {
-  background: #e2e8f0;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   place-items: start center;
 }
-/* Invisible modal frame — only the sheet itself is visible */
+/* Framed modal like the daily sheet (inherits .print-preview-modal frame), top-aligned */
 .print-preview-overlay.guide-overlay .print-preview-modal {
-  background: transparent;
-  padding: 0;
-  box-shadow: none;
   max-width: 780px;
 }
